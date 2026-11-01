@@ -1,0 +1,4 @@
+#!/usr/bin/with-contenv bash
+# Esperamos a que rsyslog cree /dev/log para no perder los primeros eventos
+for i in $(seq 1 20); do [ -S /dev/log ] && break; sleep 0.5; done
+exec /usr/sbin/sshd -D

@@ -1,0 +1,40 @@
+# Prueba el laboratorio completo en las dos arquitecturas en cada cambio:
+#   ubuntu-24.04      -> x86_64 (como la mayoría de PCs con Windows)
+#   ubuntu-24.04-arm  -> ARM64  (como los Mac con Apple Silicon)
+name: CI · x86 y ARM
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  smoke:
+    name: Laboratorio en ${{ matrix.arch }}
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: ubuntu-24.04
+            arch: x86_64
+          - runner: ubuntu-24.04-arm
+            arch: arm64
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Comprobar sintaxis de compose
+        run: docker compose config --quiet
+
+      - name: Prueba de humo
+        run: ./tests/smoke.sh
+
+      - name: Logs si algo falla
+        if: failure()
+        run: |
+          docker compose ps -a
+          for s in wazuh.indexer wazuh.manager wazuh.dashboard srv-web srv-ssh attacker; do
+            echo "::group::$s"; docker compose logs --tail 150 "$s" || true; echo "::endgroup::"
+          done

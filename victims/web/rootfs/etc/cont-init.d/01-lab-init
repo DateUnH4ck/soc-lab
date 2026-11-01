@@ -1,0 +1,4 @@
+#!/usr/bin/with-contenv bash
+# soc-lab: preparar srv-web antes de arrancar el agente
+mkdir -p /var/log/nginx
+touch /var/log/nginx/access.log /var/log/nginx/error.log

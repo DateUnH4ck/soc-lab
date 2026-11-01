@@ -1,0 +1,7 @@
+# Todo en finales de línea LF (los scripts se ejecutan dentro de contenedores
+# Linux: con CRLF fallarían en Windows).
+* text=auto eol=lf
+# Los scripts de PowerShell, en CRLF.
+*.ps1 text eol=crlf
+*.evtx binary
+*.png binary

@@ -1,0 +1,64 @@
+# Escenarios de ataque reproducibles en Wazuh.
+# Fuente: EVTX-ATTACK-SAMPLES de Samir Bousseaden (GPLv3)
+#   https://github.com/sbousseaden/EVTX-ATTACK-SAMPLES
+# Fijamos un commit concreto para que todo el mundo vea exactamente lo mismo.
+source:
+  repo: sbousseaden/EVTX-ATTACK-SAMPLES
+  commit: 4ceed2f4706daf601c212a8f91c113dd85349a2c
+
+scenarios:
+  dcsync:
+    title: DCSync contra el controlador de dominio
+    attack: T1003.006
+    module: M3 · Active Directory
+    files: ["Credential Access/CA_DCSync_4662.evtx"]
+  password-spray:
+    title: Password spraying por Kerberos (4771)
+    attack: T1110.003
+    module: M3 · Active Directory
+    files: ["Credential Access/kerberos_pwd_spray_4771.evtx"]
+  lsass-mimikatz:
+    title: Volcado de credenciales de LSASS con Mimikatz (Sysmon 10)
+    attack: T1003.001
+    module: M6 · Logs y telemetría
+    files: ["Credential Access/sysmon_10_lsass_mimikatz_sekurlsa_logonpasswords.evtx"]
+  lsass-powershell:
+    title: Volcado de LSASS desde PowerShell (4104)
+    attack: T1003.001
+    module: M6 · Logs y telemetría
+    files: ["Credential Access/Powershell_4104_MiniDumpWriteDump_Lsass.evtx"]
+  pass-the-hash:
+    title: Pass-the-Hash con Mimikatz (4624 tipo 9)
+    attack: T1550.002
+    module: M3 · Active Directory
+    files: ["Lateral Movement/LM_4624_mimikatz_sekurlsa_pth_source_machine.evtx"]
+  psexec:
+    title: Movimiento lateral con PsExec (Meterpreter)
+    attack: T1021.002
+    module: M10 · Endpoint
+    files: ["Lateral Movement/LM_sysmon_psexec_smb_meterpreter.evtx"]
+  wmiexec:
+    title: Ejecución remota con wmiexec de Impacket
+    attack: T1047
+    module: M10 · Endpoint
+    files: ["Lateral Movement/LM_wmiexec_impacket_sysmon_whoami.evtx"]
+  remote-service:
+    title: Creación remota de un servicio (7045)
+    attack: T1543.003
+    module: M6 · Logs y telemetría
+    files: ["Lateral Movement/LM_Remote_Service02_7045.evtx"]
+  scheduled-task:
+    title: Persistencia con tarea programada (rundll32 + mshta)
+    attack: T1053.005
+    module: M10 · Endpoint
+    files: ["Execution/exec_persist_rundll32_mshta_scheduledtask_sysmon_1_3_11.evtx"]
+  run-key:
+    title: Persistencia en clave Run oculta del registro (Sysmon 13)
+    attack: T1547.001
+    module: M10 · Endpoint
+    files: ["Persistence/evasion_persis_hidden_run_keyvalue_sysmon_13.evtx"]
+  admin-group:
+    title: Cuenta añadida al grupo de administradores (4732)
+    attack: T1098
+    module: M3 · Active Directory
+    files: ["Persistence/Network_Service_Guest_added_to_admins_4732.evtx"]

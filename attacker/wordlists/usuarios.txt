@@ -1,0 +1,10 @@
+admin
+root
+soporte
+test
+user
+oracle
+backup
+deploy
+ubuntu
+jonathas

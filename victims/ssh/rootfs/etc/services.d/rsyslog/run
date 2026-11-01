@@ -1,0 +1,3 @@
+#!/usr/bin/with-contenv bash
+rm -f /var/run/rsyslogd.pid
+exec rsyslogd -n -f /etc/rsyslog-lab.conf

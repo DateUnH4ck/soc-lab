@@ -1,0 +1,13 @@
+
+  ┌──────────────────────────────────────────────────────────┐
+  │  soc-lab · atacante (Kali)            @DateUnH4ck         │
+  ├──────────────────────────────────────────────────────────┤
+  │  Objetivos en la DMZ (172.30.10.0/24):                    │
+  │    srv-web   172.30.10.10   nginx (80)                    │
+  │    srv-ssh   172.30.10.11   OpenSSH (22)                  │
+  │                                                           │
+  │  Diccionarios: ~/wordlists                                │
+  │  Ataca, y luego vete al SIEM a ver qué ha quedado.        │
+  │  Solo dentro del laboratorio. Nunca contra terceros.      │
+  └──────────────────────────────────────────────────────────┘
+

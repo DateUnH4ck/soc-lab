@@ -1,0 +1,9 @@
+# Certificados generados en el setup (cada instalación tiene los suyos)
+wazuh/certs/
+# Configuración local
+.env
+# Varios
+.DS_Store
+Thumbs.db
+*.part
+__pycache__/

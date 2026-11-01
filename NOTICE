@@ -1,0 +1,18 @@
+soc-lab
+Copyright (c) 2026 Jonathas Carneiro (@DateUnH4ck)
+
+El código original de este repositorio se distribuye bajo licencia MIT (ver LICENSE).
+
+Componentes de terceros incluidos:
+
+- wazuh/certs-generator/, wazuh/indexer/, wazuh/dashboard/, wazuh/manager/ossec.conf,
+  wazuh/certs.yml y victims/*/ossec.conf
+  Derivados de wazuh/wazuh-docker — Copyright (C) 2017, Wazuh Inc.
+  Licencia GPLv2 — https://github.com/wazuh/wazuh-docker
+  Estos ficheros mantienen su licencia GPLv2.
+
+Componentes de terceros descargados en tiempo de ejecución (no incluidos):
+
+- EVTX-ATTACK-SAMPLES — Samir Bousseaden — GPLv3
+  https://github.com/sbousseaden/EVTX-ATTACK-SAMPLES
+- Imágenes Docker de Wazuh, Kali Linux, Python y Alpine, cada una con su licencia.
