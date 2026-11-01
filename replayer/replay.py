@@ -85,12 +85,25 @@ def fetch(catalog, rel_path):
     return target
 
 
+TAG_RE = re.compile(r"<[^<>]+>")
+ATTR_RE = re.compile(r'="([^"]*)"')
+
+
+def _single_quote_attrs(tag_match):
+    # Windows (EvtRender) escribe los atributos con comillas simples y el
+    # decoder de Wazuh lo espera asi: name='valor'
+    return ATTR_RE.sub(
+        lambda m: "='" + m.group(1).replace("'", "&apos;") + "'", tag_match.group(0)
+    )
+
+
 def to_agent_xml(raw_xml):
-    """Deja el XML como lo envia el agente: una sola linea y fecha ISO."""
+    """Deja el XML como lo envia el agente de Windows:
+    una sola linea, atributos con comillas simples y fecha ISO 8601."""
     xml = re.sub(r">\s+<", "><", raw_xml.strip())
     xml = xml.replace("\r", " ").replace("\n", " ").replace("\t", " ")
     xml = SYSTEMTIME_RE.sub(lambda m: f'SystemTime="{m.group(1)}T{m.group(2)}Z"', xml)
-    return xml
+    return TAG_RE.sub(_single_quote_attrs, xml)
 
 
 def open_queue():
