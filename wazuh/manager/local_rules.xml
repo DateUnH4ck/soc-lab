@@ -58,10 +58,11 @@
     Persistencia en las claves Run del registro (T1547.001)
     Sysmon 13 = se escribe un valor en el registro. Lo que hay en
     ...\CurrentVersion\Run(Once) se ejecuta cada vez que alguien inicia sesión.
+    Ojo: Wazuh guarda las barras de las rutas de Windows duplicadas (\\), por eso \\+.
   -->
   <rule id="100102" level="10">
     <if_sid>61615</if_sid>
-    <field name="win.eventdata.targetObject" type="pcre2">(?i)\\CurrentVersion\\Run(Once)?\\</field>
+    <field name="win.eventdata.targetObject" type="pcre2">(?i)\\+CurrentVersion\\+Run(Once)?\\+</field>
     <description>Persistencia: $(win.eventdata.image) ha escrito en una clave Run del registro ($(win.eventdata.details))</description>
     <options>no_full_log</options>
     <mitre>
