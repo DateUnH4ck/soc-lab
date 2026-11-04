@@ -85,6 +85,7 @@ services:
       - ./wazuh/certs/wazuh.manager.pem:/etc/ssl/filebeat.pem
       - ./wazuh/certs/wazuh.manager-key.pem:/etc/ssl/filebeat.key
       - ./wazuh/manager/ossec.conf:/wazuh-config-mount/etc/ossec.conf
+      - ./wazuh/manager/local_rules.xml:/wazuh-config-mount/etc/rules/local_rules.xml
     depends_on:
       wazuh.indexer:
         condition: service_healthy

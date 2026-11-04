@@ -42,6 +42,7 @@ como harías en un SOC de verdad.
 | **srv-ssh** | Servidor Linux con OpenSSH y agente Wazuh | Fuerza bruta SSH, accesos, persistencia |
 | **kali** | Kali Linux con nmap, hydra, nikto... | Atacar a las víctimas (solo dentro del lab) |
 | **replayer** | Inyecta en Wazuh eventos reales de ataques a Windows | Practicar Active Directory y Sysmon **sin una VM Windows** |
+| **Reglas propias** | Detecciones que Wazuh no trae de serie (p. ej. DCSync) | Que todos los ataques del curso generen alerta desde el primer día |
 
 ## Requisitos
 
@@ -99,10 +100,13 @@ El navegador avisará de que el certificado es autofirmado: es normal, acéptalo
 ```bash
 ./lab.sh attacker
 # ya dentro de la Kali:
-hydra -l soporte -P ~/wordlists/passwords.txt ssh://172.30.10.11
+hydra -t 4 -l soporte -P ~/wordlists/passwords.txt ssh://172.30.10.11
+# 17 contraseñas: en unos segundos encuentra soporte / sunshine
+exit   # vuelves a tu ordenador
 ```
 
-Vete al dashboard → **Threat Hunting** → filtra por `agent.name: srv-ssh`.
+Vete al dashboard → **Threat Hunting** → filtra por `agent.name: srv-ssh`
+(si ves el aviso *Lucene syntax warning*, pulsa *Don't show again*: la búsqueda es correcta).
 Verás los intentos fallidos, la alerta de fuerza bruta y... el inicio de sesión
 que lo consiguió. Eso es lo que tendrías que escalar en un SOC.
 
@@ -114,7 +118,29 @@ El replayer reproduce en Wazuh eventos **reales** grabados durante ataques
 Llegan a Wazuh exactamente igual que si los enviara un agente de Windows, así
 que saltan las mismas reglas. Todos los alumnos ven los mismos eventos.
 
+```bash
+./lab.sh replay dcsync
+```
+
+Dashboard → **Threat Hunting** → `rule.groups: windows`. Aparecen con el agente
+`wazuh.manager`, porque entran por el manager y no por un agente de Windows.
+El DCSync salta con una regla propia del laboratorio (`rule.id: 100100`, nivel 12):
+Wazuh no lo detecta de serie, y en el curso veremos cómo se escribe una regla así.
+
 Catálogo completo: [docs/escenarios.md](docs/escenarios.md)
+
+## Cosas que conviene saber
+
+- **Dos IPs por víctima.** srv-web y srv-ssh tienen dos tarjetas de red: una en la
+  DMZ (172.30.10.x), por donde las ataca la Kali, y otra en la red `soc`
+  (172.30.20.x), por donde hablan con Wazuh. Por eso en el dashboard verás
+  srv-ssh como 172.30.20.x aunque lo ataques en 172.30.10.11.
+- **Horas en UTC.** La Kali y los logs van en UTC; tu ordenador y el dashboard,
+  en tu hora local. Convertir zonas horarias es parte del trabajo en un SOC.
+- **Busca los agentes por nombre** (`agent.name: srv-ssh`), no por número: el ID
+  puede cambiar entre instalaciones.
+- La primera vez que abres el dashboard, el resumen de agentes puede tardar un
+  par de minutos en actualizarse. Recarga la página.
 
 ## Seguridad
 

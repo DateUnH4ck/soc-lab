@@ -1,0 +1,128 @@
+<!--
+  Reglas propias de soc-lab
+  =========================
+  Wazuh trae miles de reglas de serie, pero algunos ataques del curso no
+  generan ninguna alerta con ellas. Aquí añadimos las que faltan para que
+  todos los escenarios del replayer se vean en el dashboard desde el primer día.
+
+  Rango de IDs reservado para el laboratorio: 100100 - 100199.
+  En el curso aprenderemos a escribir reglas como estas (M7 y M14).
+-->
+
+<group name="windows,soc-lab,">
+
+  <!--
+    DCSync (T1003.006)
+    Un atacante con permisos de replicación pide al controlador de dominio
+    los hashes de las cuentas, haciéndose pasar por otro DC (mimikatz lsadump::dcsync).
+    Se ve como un evento 4662 (operación sobre un objeto del directorio) cuyas
+    propiedades incluyen los GUID de los derechos de replicación:
+      1131f6aa-...  DS-Replication-Get-Changes
+      1131f6ad-...  DS-Replication-Get-Changes-All
+      89e95b76-...  DS-Replication-Get-Changes-In-Filtered-Set
+    La replicación legítima la hacen los propios DC con cuentas de máquina
+    (terminadas en $), así que las excluimos.
+  -->
+  <rule id="100100" level="12">
+    <if_sid>60103</if_sid>
+    <field name="win.system.eventID">^4662$</field>
+    <field name="win.eventdata.properties" type="pcre2">(?i)1131f6aa-9c07-11d1-f79f-00c04fc2dcd2|1131f6ad-9c07-11d1-f79f-00c04fc2dcd2|89e95b76-444d-4c62-991a-0facbeda640c</field>
+    <field name="win.eventdata.subjectUserName" type="pcre2" negate="yes">\$$</field>
+    <description>Posible DCSync: $(win.eventdata.subjectUserName) ha pedido replicar el directorio (credenciales del dominio)</description>
+    <options>no_full_log</options>
+    <mitre>
+      <id>T1003.006</id>
+    </mitre>
+    <group>credential_access,dcsync,</group>
+  </rule>
+
+  <!--
+    Volcado de credenciales de LSASS (T1003.001)
+    Sysmon 10 = un proceso abre otro. Si el destino es lsass.exe (donde Windows
+    guarda las credenciales en memoria), es lo que hace mimikatz sekurlsa::logonpasswords.
+    Excluimos procesos del sistema que lo hacen de forma legítima.
+  -->
+  <rule id="100101" level="12">
+    <if_sid>61612</if_sid>
+    <field name="win.eventdata.targetImage" type="pcre2">(?i)\\lsass\.exe$</field>
+    <field name="win.eventdata.sourceImage" type="pcre2" negate="yes">(?i)\\(svchost|wininit|csrss|services|lsm|wmiprvse|MsMpEng)\.exe$</field>
+    <description>Acceso a la memoria de LSASS desde $(win.eventdata.sourceImage): posible volcado de credenciales</description>
+    <options>no_full_log</options>
+    <mitre>
+      <id>T1003.001</id>
+    </mitre>
+    <group>credential_access,</group>
+  </rule>
+
+  <!--
+    Persistencia en las claves Run del registro (T1547.001)
+    Sysmon 13 = se escribe un valor en el registro. Lo que hay en
+    ...\CurrentVersion\Run(Once) se ejecuta cada vez que alguien inicia sesión.
+    Wazuh ya reconoce estas claves con la regla 92300, pero con nivel 0 (no
+    genera alerta salvo casos concretos). La subimos a alerta para cualquier
+    escritura que no venga de un instalador de Windows.
+  -->
+  <rule id="100102" level="10">
+    <if_sid>92300</if_sid>
+    <field name="win.eventdata.image" type="pcre2" negate="yes">(?i)\\(msiexec|TrustedInstaller|setup)\.exe$</field>
+    <description>Persistencia: $(win.eventdata.image) ha escrito en una clave Run del registro ($(win.eventdata.details))</description>
+    <options>no_full_log</options>
+    <mitre>
+      <id>T1547.001</id>
+    </mitre>
+    <group>persistence,</group>
+  </rule>
+
+  <!--
+    Pass-the-Hash (T1550.002)
+    mimikatz sekurlsa::pth abre una sesión con credenciales robadas. Se ve como
+    un inicio de sesión 4624 de tipo 9 (NewCredentials) con el proceso seclogo.
+  -->
+  <rule id="100103" level="12">
+    <if_sid>60106</if_sid>
+    <field name="win.system.eventID">^4624$</field>
+    <field name="win.eventdata.logonType">^9$</field>
+    <field name="win.eventdata.logonProcessName" type="pcre2">(?i)^seclogo</field>
+    <description>Posible Pass-the-Hash: inicio de sesión de tipo 9 (seclogo) de $(win.eventdata.targetUserName)</description>
+    <options>no_full_log</options>
+    <mitre>
+      <id>T1550.002</id>
+    </mitre>
+    <group>lateral_movement,</group>
+  </rule>
+
+  <!--
+    Tarea programada creada desde la línea de comandos (T1053.005)
+    Sysmon 1 = se crea un proceso. schtasks /create es la forma clásica de
+    dejar persistencia que se ejecuta cada X minutos.
+  -->
+  <rule id="100104" level="8">
+    <if_sid>61603</if_sid>
+    <field name="win.eventdata.image" type="pcre2">(?i)\\schtasks\.exe$</field>
+    <field name="win.eventdata.commandLine" type="pcre2">(?i)/create</field>
+    <description>Tarea programada creada por línea de comandos (padre: $(win.eventdata.parentImage))</description>
+    <options>no_full_log</options>
+    <mitre>
+      <id>T1053.005</id>
+    </mitre>
+    <group>persistence,</group>
+  </rule>
+
+  <!--
+    mshta descargando contenido de internet (T1218.005)
+    mshta.exe ejecuta aplicaciones HTA; si se le pasa una URL es una técnica muy
+    usada para ejecutar código remoto con un binario firmado por Microsoft (LOLBin).
+  -->
+  <rule id="100105" level="10">
+    <if_sid>61603</if_sid>
+    <field name="win.eventdata.image" type="pcre2">(?i)\\mshta\.exe$</field>
+    <field name="win.eventdata.commandLine" type="pcre2">(?i)https?://</field>
+    <description>LOLBin: mshta.exe ejecutando contenido remoto ($(win.eventdata.commandLine))</description>
+    <options>no_full_log</options>
+    <mitre>
+      <id>T1218.005</id>
+    </mitre>
+    <group>defense_evasion,</group>
+  </rule>
+
+</group>
