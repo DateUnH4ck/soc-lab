@@ -1,0 +1,39 @@
+<!--
+  Reglas propias de soc-lab
+  =========================
+  Wazuh trae miles de reglas de serie, pero algunos ataques del curso no
+  generan ninguna alerta con ellas. Aquí añadimos las que faltan para que
+  todos los escenarios del replayer se vean en el dashboard desde el primer día.
+
+  Rango de IDs reservado para el laboratorio: 100100 - 100199.
+  En el curso aprenderemos a escribir reglas como estas (M7 y M14).
+-->
+
+<group name="windows,soc-lab,">
+
+  <!--
+    DCSync (T1003.006)
+    Un atacante con permisos de replicación pide al controlador de dominio
+    los hashes de las cuentas, haciéndose pasar por otro DC (mimikatz lsadump::dcsync).
+    Se ve como un evento 4662 (operación sobre un objeto del directorio) cuyas
+    propiedades incluyen los GUID de los derechos de replicación:
+      1131f6aa-...  DS-Replication-Get-Changes
+      1131f6ad-...  DS-Replication-Get-Changes-All
+      89e95b76-...  DS-Replication-Get-Changes-In-Filtered-Set
+    La replicación legítima la hacen los propios DC con cuentas de máquina
+    (terminadas en $), así que las excluimos.
+  -->
+  <rule id="100100" level="12">
+    <if_sid>60103</if_sid>
+    <field name="win.system.eventID">^4662$</field>
+    <field name="win.eventdata.properties" type="pcre2">(?i)1131f6aa-9c07-11d1-f79f-00c04fc2dcd2|1131f6ad-9c07-11d1-f79f-00c04fc2dcd2|89e95b76-444d-4c62-991a-0facbeda640c</field>
+    <field name="win.eventdata.subjectUserName" type="pcre2" negate="yes">\$$</field>
+    <description>Posible DCSync: $(win.eventdata.subjectUserName) ha pedido replicar el directorio (credenciales del dominio)</description>
+    <options>no_full_log</options>
+    <mitre>
+      <id>T1003.006</id>
+    </mitre>
+    <group>credential_access,dcsync,</group>
+  </rule>
+
+</group>

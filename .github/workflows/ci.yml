@@ -31,6 +31,9 @@ jobs:
       - name: Prueba de humo
         run: ./tests/smoke.sh
 
+      - name: Escenarios de Windows uno a uno
+        run: ./tests/scenarios.sh
+
       - name: Logs si algo falla
         if: failure()
         run: |
