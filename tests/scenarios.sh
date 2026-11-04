@@ -18,6 +18,16 @@ PASS=${PASS:-SecretPassword}
 IDX="https://localhost:9200"
 FAILED=()
 
+# Escenarios que dependen de una regla propia del lab (wazuh/manager/local_rules.xml):
+# además de generar alertas, tiene que saltar esa regla.
+declare -A EXPECT=(
+  [dcsync]=100100
+  [lsass-mimikatz]=100101
+  [run-key]=100102
+  [pass-the-hash]=100103
+  [scheduled-task]=100104
+)
+
 if [ $# -gt 0 ]; then
   SCENARIOS=("$@")
 else
@@ -65,7 +75,12 @@ for sc in "${SCENARIOS[@]}"; do
   sleep 10   # damos tiempo a las alertas rezagadas
   res=$(search "$since")
   n=$(echo "$res" | total)
-  if [ "$n" -gt 0 ]; then
+  want=${EXPECT[$sc]:-}
+  if [ -n "$want" ] && ! echo "$res" | grep -q "\"key\":\"$want\""; then
+    printf "\033[1;31m  ✘ %-16s %3s alertas, pero no salta la regla %s\033[0m\n" "$sc" "$n" "$want"
+    echo "$res" | summary
+    FAILED+=("$sc")
+  elif [ "$n" -gt 0 ]; then
     printf "\033[1;32m  ✔ %-16s %3s alertas\033[0m\n" "$sc" "$n"
     echo "$res" | summary
   else
