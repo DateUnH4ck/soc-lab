@@ -34,7 +34,7 @@ step "3. Fuerza bruta SSH desde la Kali (hydra)"
 docker compose exec -T attacker hydra -l soporte -P /root/wordlists/passwords.txt \
   -t 4 -f ssh://172.30.10.11 | tee /tmp/hydra.txt || true
 grep -q "password: sunshine" /tmp/hydra.txt && ok "hydra encontró la contraseña" || ko "hydra no encontró la contraseña"
-docker compose exec -T attacker bash -ic 'echo "$PS1"' 2>/dev/null | grep -q "atacante" \
+docker compose exec -T attacker sh -c 'grep -q "\. /root/.bashrc-soclab" /root/.bashrc && grep -q "atacante" /root/.bashrc-soclab' \
   && ok "prompt de atacante en la Kali" || ko "la Kali no tiene el prompt de atacante"
 
 step "4. Escaneo web (peticiones a rutas inexistentes)"
