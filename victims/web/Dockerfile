@@ -5,7 +5,7 @@ FROM wazuh/wazuh-agent:${WAZUH_VERSION}
 
 RUN yum install -y nginx iptables-nft && yum clean all && rm -rf /var/cache/yum
 
-# Configuracion del agente (el contenedor la copia a /var/ossec al arrancar)
+# Configuración del agente (el contenedor la copia a /var/ossec al arrancar)
 COPY ossec.conf /wazuh-config-mount/etc/ossec.conf
 # Web de la empresa ficticia + servicio nginx gestionado por s6
 COPY rootfs/ /
