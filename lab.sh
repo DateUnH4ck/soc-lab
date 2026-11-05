@@ -157,7 +157,8 @@ cmd_up() {
     return
   fi
   set_max_map_count
-  $COMPOSE up -d
+  # --build: si has hecho git pull, reconstruye la Kali y las víctimas (con caché, tarda segundos)
+  $COMPOSE up -d --build
   wait_ready
 }
 
