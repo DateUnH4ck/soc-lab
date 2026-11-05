@@ -100,6 +100,7 @@ El navegador avisará de que el certificado es autofirmado: es normal, acéptalo
 ```bash
 ./lab.sh attacker
 # ya dentro de la Kali:
+# el prompt cambia a «kali ☠ atacante», en rojo: estás en la Kali
 hydra -t 4 -l soporte -P ~/wordlists/passwords.txt ssh://172.30.10.11
 # 17 contraseñas: en unos segundos encuentra soporte / sunshine
 exit   # vuelves a tu ordenador
@@ -137,6 +138,8 @@ Catálogo completo: [docs/escenarios.md](docs/escenarios.md)
   srv-ssh como 172.30.20.x aunque lo ataques en 172.30.10.11.
 - **Horas en UTC.** La Kali y los logs van en UTC; tu ordenador y el dashboard,
   en tu hora local. Convertir zonas horarias es parte del trabajo en un SOC.
+- **Después de un `git pull`**, `./lab.sh up` reconstruye solo lo que haya cambiado
+  (la Kali y las víctimas); tarda unos segundos.
 - **Busca los agentes por nombre** (`agent.name: srv-ssh`), no por número: el ID
   puede cambiar entre instalaciones.
 - La primera vez que abres el dashboard, el resumen de agentes puede tardar un

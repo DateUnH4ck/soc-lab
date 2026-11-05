@@ -148,7 +148,8 @@ function Invoke-Up {
     Test-Docker; Initialize-Env
     if (-not (Test-Path "$CertsDir\root-ca.pem")) { Warn "Primera vez: ejecuto 'setup'"; Invoke-Setup; return }
     Set-MaxMapCount
-    Compose up -d
+    # --build: si has hecho git pull, reconstruye la Kali y las víctimas (con caché, tarda segundos)
+    Compose up -d --build
     Wait-Ready
 }
 

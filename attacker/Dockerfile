@@ -11,6 +11,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 COPY wordlists/ /root/wordlists/
 COPY motd /etc/motd
-RUN echo 'cat /etc/motd' >> /root/.bashrc
+COPY bashrc-soclab /root/.bashrc-soclab
+RUN echo '. /root/.bashrc-soclab' >> /root/.bashrc
 
 WORKDIR /root
