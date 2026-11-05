@@ -4,12 +4,12 @@ soc-lab replayer
 ================
 
 Reproduce en Wazuh eventos REALES de ataques en Windows (ficheros .evtx),
-como si los hubiera enviado un agente Windows. Asi puedes practicar la
-deteccion de ataques a Active Directory y endpoints Windows sin necesitar
-una maquina Windows (y funciona igual en PC x86 y en Mac ARM).
+como si los hubiera enviado un agente Windows. Así puedes practicar la
+detección de ataques a Active Directory y endpoints Windows sin necesitar
+una máquina Windows (y funciona igual en PC x86 y en Mac ARM).
 
-Como funciona:
-  1. Descarga los .evtx del escenario (y los guarda en cache).
+Cómo funciona:
+  1. Descarga los .evtx del escenario (y los guarda en caché).
   2. Convierte cada evento a XML, igual que hace el agente de Windows.
   3. Lo entrega en la cola interna del manager de Wazuh (queue/sockets/queue)
      con el mismo formato que usa el agente para el canal "EventChannel".
@@ -91,7 +91,7 @@ ATTR_RE = re.compile(r'="([^"]*)"')
 
 def _single_quote_attrs(tag_match):
     # Windows (EvtRender) escribe los atributos con comillas simples y el
-    # decoder de Wazuh lo espera asi: name='valor'
+    # decoder de Wazuh lo espera así: name='valor'
     return ATTR_RE.sub(
         lambda m: "='" + m.group(1).replace("'", "&apos;") + "'", tag_match.group(0)
     )

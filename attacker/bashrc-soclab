@@ -1,6 +1,5 @@
 # --- soc-lab: shell del atacante -------------------------------------------
-# Prompt en rojo para que en el vídeo (y en tus capturas) se vea al instante
-# que estás en la Kali, el lado atacante. En tu ordenador, el lado defensor,
-# usa el prompt que quieras.
+# Prompt en rojo para distinguir de un vistazo cuándo estás en la Kali (lado
+# atacante) y cuándo en tu ordenador (lado defensor).
 cat /etc/motd
 PS1='\n\[\e[1;38;5;203m\]kali ☠ atacante\[\e[0m\] \[\e[38;5;250m\]\w\[\e[0m\]\n\[\e[1;38;5;203m\]❯\[\e[0m\] '

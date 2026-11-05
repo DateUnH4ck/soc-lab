@@ -15,4 +15,4 @@ Componentes de terceros descargados en tiempo de ejecución (no incluidos):
 
 - EVTX-ATTACK-SAMPLES — Samir Bousseaden — GPLv3
   https://github.com/sbousseaden/EVTX-ATTACK-SAMPLES
-- Imágenes Docker de Wazuh, Kali Linux, Python y Alpine, cada una con su licencia.
+- Imágenes Docker de Wazuh, Kali Linux, Python y Amazon Linux, cada una con su licencia.

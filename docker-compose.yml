@@ -7,7 +7,7 @@
 #
 #  Redes:
 #    soc  (172.30.20.0/24) -> SIEM (Wazuh) y agentes
-#    dmz  (172.30.10.0/24) -> victimas y atacante. El atacante NO ve el SIEM.
+#    dmz  (172.30.10.0/24) -> víctimas y atacante. El atacante NO ve el SIEM.
 #
 #  Los servicios de Wazuh se basan en wazuh/wazuh-docker (GPLv2), single-node.
 # =============================================================================
@@ -123,7 +123,7 @@ services:
     networks: [soc]
 
   # ---------------------------------------------------------------------------
-  #  Victimas (DMZ) con agente Wazuh
+  #  Víctimas (DMZ) con agente Wazuh
   # ---------------------------------------------------------------------------
   srv-web:
     <<: *restart
