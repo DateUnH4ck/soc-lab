@@ -50,7 +50,7 @@ como harías en un SOC de verdad.
 - **8 GB de RAM** asignados a Docker (mínimo 6) y unos 20 GB de disco.
 - Funciona en **x86_64** y **ARM64**: la CI lo prueba en las dos en cada cambio.
 
-Guías paso a paso: [Windows](docs/windows.md) · [Mac](docs/mac.md) · [requisitos y memoria](docs/requisitos.md)
+Guías paso a paso: [Windows](docs/windows.md) · [Mac](docs/mac.md) · [Linux](docs/linux.md) · [requisitos y memoria](docs/requisitos.md)
 
 ## Instalación
 

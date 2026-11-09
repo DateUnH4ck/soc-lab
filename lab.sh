@@ -46,11 +46,17 @@ EOF
 
 check_docker() {
   if ! command -v docker >/dev/null 2>&1; then
-    c_err "Docker no está instalado. Instala Docker Desktop: https://www.docker.com/products/docker-desktop/"
+    c_err "Docker no está instalado. Mac: Docker Desktop (https://www.docker.com/products/docker-desktop/). Linux: Docker Engine (docs/linux.md)."
     exit 1
   fi
-  if ! docker info >/dev/null 2>&1; then
-    c_err "Docker no está arrancado. Abre Docker Desktop (o 'sudo systemctl start docker') y vuelve a probar."
+  local err
+  if ! err=$(docker info 2>&1 >/dev/null); then
+    if printf '%s' "$err" | grep -qi "permission denied"; then
+      # Linux: el usuario no está en el grupo docker
+      c_err "Tu usuario no tiene permiso para usar Docker. Ejecuta 'sudo usermod -aG docker \$USER', cierra sesión y vuelve a entrar. Ver docs/linux.md"
+    else
+      c_err "Docker no está arrancado. Abre Docker Desktop (o 'sudo systemctl start docker') y vuelve a probar."
+    fi
     exit 1
   fi
   if ! docker compose version >/dev/null 2>&1; then
@@ -66,7 +72,7 @@ check_memory() {
   gb=$(( bytes / 1024 / 1024 / 1024 ))
   if [ "$gb" -lt "$MIN_MEM_GB" ]; then
     c_warn "Docker solo tiene ${gb} GB de RAM. Recomendado: 8 GB (mínimo ${MIN_MEM_GB})."
-    c_warn "Docker Desktop → Settings → Resources → Memory. Ver docs/requisitos.md"
+    c_warn "Docker Desktop → Settings → Resources → Memory (en Linux, Docker usa la RAM del equipo). Ver docs/requisitos.md"
   else
     c_ok "Memoria disponible para Docker: ${gb} GB"
   fi
