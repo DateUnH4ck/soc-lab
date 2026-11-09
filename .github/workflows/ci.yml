@@ -1,7 +1,9 @@
 # Prueba el laboratorio completo en las dos arquitecturas en cada cambio:
 #   ubuntu-24.04      -> x86_64 (como la mayoría de PCs con Windows)
 #   ubuntu-24.04-arm  -> ARM64  (como los Mac con Apple Silicon)
-name: CI · x86 y ARM
+# Y lab.ps1 en Windows PowerShell 5.1 (sin contenedores: GitHub no puede
+# ejecutar contenedores Linux en sus máquinas Windows).
+name: CI · x86, ARM y Windows
 
 on:
   push:
@@ -41,3 +43,14 @@ jobs:
           for s in wazuh.indexer wazuh.manager wazuh.dashboard srv-web srv-ssh attacker; do
             echo "::group::$s"; docker compose logs --tail 150 "$s" || true; echo "::endgroup::"
           done
+
+  windows-powershell:
+    name: lab.ps1 en Windows PowerShell 5.1
+    runs-on: windows-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: lab.ps1 no se corta cuando docker escribe en stderr
+        shell: powershell
+        run: .\tests\windows-ps51.ps1

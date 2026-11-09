@@ -3,6 +3,9 @@
 **Lo primero:** `./lab.sh status` (Windows: `.\lab.ps1 status`) y
 `./lab.sh logs <servicio>`.
 
+### Windows: falla la instalación de Docker o de WSL, o `lab.ps1` da un error rojo
+Mira la sección de problemas típicos de la [guía de Windows](windows.md).
+
 ### El dashboard dice "Wazuh dashboard server is not ready yet"
 Es normal durante los primeros minutos. Espera 2-3 minutos y recarga.
 

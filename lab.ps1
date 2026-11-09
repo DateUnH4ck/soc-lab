@@ -21,6 +21,13 @@ function Info($m) { Write-Host "-->  $m" -ForegroundColor Cyan }
 function Warn($m) { Write-Host "[!]  $m" -ForegroundColor Yellow }
 function Fail($m) { Write-Host "[X]  $m" -ForegroundColor Red; exit 1 }
 
+# En Windows PowerShell 5.1, con $ErrorActionPreference = "Stop", cualquier
+# línea que docker escriba en stderr (avisos, "Unable to find image"...) se
+# convierte en un error que corta el script si se redirige. Estas dos funciones
+# lo desactivan solo para esa llamada; el resultado se comprueba con $LASTEXITCODE.
+function Invoke-DockerQuiet { $ErrorActionPreference = "Continue"; & docker @args *> $null }
+function Invoke-DockerNoErr { $ErrorActionPreference = "Continue"; & docker @args 2>$null }
+
 function Compose {
     & docker compose @args
     if ($LASTEXITCODE -ne 0) { Fail "docker compose $($args -join ' ') ha fallado" }
@@ -61,9 +68,9 @@ function Test-Docker {
     if (-not (Get-Command docker -ErrorAction SilentlyContinue)) {
         Fail "Docker no está instalado. Instala Docker Desktop: https://www.docker.com/products/docker-desktop/"
     }
-    & docker info *> $null
+    Invoke-DockerQuiet info
     if ($LASTEXITCODE -ne 0) { Fail "Docker no está arrancado. Abre Docker Desktop y vuelve a probar." }
-    & docker compose version *> $null
+    Invoke-DockerQuiet compose version
     if ($LASTEXITCODE -ne 0) { Fail "Falta Docker Compose v2. Actualiza Docker Desktop." }
     $ver  = & docker version --format '{{.Server.Version}}'
     $arch = & docker info --format '{{.Architecture}}'
@@ -83,7 +90,7 @@ function Test-Memory {
 
 function Set-MaxMapCount {
     # El indexer necesita vm.max_map_count >= 262144 en el kernel de Docker (WSL2).
-    & docker run --rm --privileged alpine:3.20 sysctl -w vm.max_map_count=262144 *> $null
+    Invoke-DockerQuiet run --rm --privileged alpine:3.20 sysctl -w vm.max_map_count=262144
     if ($LASTEXITCODE -ne 0) { Fail "No he podido ajustar vm.max_map_count" }
     Ok "vm.max_map_count = 262144"
 }
@@ -105,7 +112,7 @@ function Wait-Ready {
     Info "Esperando a que Wazuh esté listo (la primera vez puede tardar 3-5 min)..."
     $probe = "curl -sk -o /dev/null -w '%{http_code}' https://wazuh.dashboard:5601/app/login | grep -q 200"
     for ($i = 1; $i -le 90; $i++) {
-        & docker compose exec -T wazuh.manager sh -c $probe *> $null
+        Invoke-DockerQuiet compose exec -T wazuh.manager sh -c $probe
         if ($LASTEXITCODE -eq 0) {
             Write-Host ""
             $url = if ($port -eq "443") { "https://localhost" } else { "https://localhost:$port" }
@@ -157,7 +164,7 @@ function Show-Status {
     & docker compose ps --format 'table {{.Service}}\t{{.State}}\t{{.Status}}'
     Write-Host ""
     Info "Agentes Wazuh:"
-    & docker compose exec -T wazuh.manager /var/ossec/bin/agent_control -l 2>$null | Select-String "ID:"
+    Invoke-DockerNoErr compose exec -T wazuh.manager /var/ossec/bin/agent_control -l | Select-String "ID:"
 }
 
 function Invoke-Reset {
