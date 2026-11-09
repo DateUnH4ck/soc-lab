@@ -3,7 +3,7 @@
 de <a href="https://www.youtube.com/@DateUnH4ck">@DateUnH4ck</a> · en español · gratis</p>
 
 <p align="center">
-  <a href="../../actions/workflows/ci.yml"><img src="../../actions/workflows/ci.yml/badge.svg" alt="CI x86 y ARM"></a>
+  <a href="../../actions/workflows/ci.yml"><img src="../../actions/workflows/ci.yml/badge.svg" alt="CI x86, ARM y Windows"></a>
   <img src="https://img.shields.io/badge/x86__64-PC%20Windows%20%2F%20Linux-0078D6?style=flat-square" alt="x86_64">
   <img src="https://img.shields.io/badge/ARM64-Mac%20Apple%20Silicon-000000?style=flat-square&logo=apple" alt="ARM64">
   <img src="https://img.shields.io/badge/SIEM-Wazuh%204.14-3C99DC?style=flat-square" alt="Wazuh">
