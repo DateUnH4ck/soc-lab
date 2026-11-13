@@ -31,6 +31,20 @@ Ubuntu. **Reinicia el PC** cuando termine: sin reiniciar, Docker no arranca.
 4. Abre Docker Desktop y espera a que abajo a la izquierda ponga
    **Engine running**. Puedes saltarte el inicio de sesión.
 
+### ¿Cuánta memoria tiene Docker?
+
+Con WSL 2, Docker usa por defecto **la mitad de la RAM del PC**, y en Docker
+Desktop no verás un control para cambiarla. El laboratorio necesita 8 GB
+(mínimo 6):
+
+- Si tu PC tiene **16 GB o más**, no toques nada.
+- Si tiene menos, sigue la guía de
+  [requisitos y memoria](requisitos.md#cómo-dar-más-memoria-a-docker): se
+  ajusta en el archivo `.wslconfig`, y si aun así vas justo, puedes bajar la
+  memoria del indexer en `.env`.
+
+`.\lab.ps1 setup` te avisa si Docker tiene menos de 6 GB.
+
 ## 3. Instala Git
 
 Desde PowerShell:
