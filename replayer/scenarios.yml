@@ -1,10 +1,21 @@
 # Escenarios de ataque reproducibles en Wazuh.
-# Fuente: EVTX-ATTACK-SAMPLES de Samir Bousseaden (GPLv3)
-#   https://github.com/sbousseaden/EVTX-ATTACK-SAMPLES
-# Fijamos un commit concreto para que todo el mundo vea exactamente lo mismo.
-source:
-  repo: sbousseaden/EVTX-ATTACK-SAMPLES
-  commit: 4ceed2f4706daf601c212a8f91c113dd85349a2c
+# Fuentes de las muestras (se descargan al reproducir; no están en este repo):
+#   - EVTX-ATTACK-SAMPLES de Samir Bousseaden (GPLv3)
+#     https://github.com/sbousseaden/EVTX-ATTACK-SAMPLES
+#   - EVTX-to-MITRE-Attack de Michel de Crevoisier (CC0)
+#     https://github.com/mdecrevoisier/EVTX-to-MITRE-Attack
+# Fijamos un commit concreto de cada una para que todo el mundo vea exactamente lo mismo.
+# Cada escenario usa la fuente por defecto salvo que indique "source".
+sources:
+  evtx-attack-samples:
+    repo: sbousseaden/EVTX-ATTACK-SAMPLES
+    commit: 4ceed2f4706daf601c212a8f91c113dd85349a2c
+    license: GPLv3
+  evtx-to-mitre:
+    repo: mdecrevoisier/EVTX-to-MITRE-Attack
+    commit: 474856008f037ccd42753f02a631b42690195829
+    license: CC0
+default_source: evtx-attack-samples
 
 scenarios:
   dcsync:
@@ -62,3 +73,81 @@ scenarios:
     attack: T1098
     module: M3 · Active Directory
     files: ["Persistence/Network_Service_Guest_added_to_admins_4732.evtx"]
+
+  # --- Añadidos en soc-lab 1.2 (episodios E09-E15 y E23 del curso) ---------
+  process-4688:
+    title: Creación de proceso con PowerShell codificado (4688)
+    attack: T1059.001
+    module: M2 · Windows y Linux
+    source: evtx-to-mitre
+    files: ["TA0002-Execution/T1059.001-PowerShell/ID4688-Encoded PowerShell MSF payload via process execution.evtx"]
+  unquoted-service:
+    title: Servicio con ruta sin comillas (Sysmon 1 y 11)
+    attack: T1574.009
+    module: M2 · Windows y Linux
+    files: ["Privilege Escalation/privesc_unquoted_svc_sysmon_1_11.evtx"]
+  task-4698:
+    title: Tarea programada creada y borrada (4698 y 4699)
+    attack: T1053.005
+    module: M2 · Windows y Linux
+    files: ["Execution/temp_scheduled_task_4698_4699.evtx"]
+  wmi-persistence:
+    title: Persistencia con una suscripción WMI (Sysmon 19, 20 y 21)
+    attack: T1546.003
+    module: M2 · Windows y Linux
+    files: ["Persistence/sysmon_20_21_1_CommandLineEventConsumer.evtx"]
+  powershell-4104:
+    title: Descarga con PowerShell vista por el script block logging (4103 y 4104)
+    attack: T1059.001
+    module: M2 · Windows y Linux
+    source: evtx-to-mitre
+    files: ["TA0002-Execution/T1059.001-PowerShell/ID4103-4104-Payload download via PowerShell.evtx"]
+  uac-bypass:
+    title: Bypass de UAC con eventvwr.exe (Sysmon 13 y 1)
+    attack: T1548.002
+    module: M2 · Windows y Linux
+    files: ["Privilege Escalation/Sysmon_13_1_UAC_Bypass_EventVwrBypass.evtx"]
+  local-account:
+    title: Cuenta local creada y añadida a Administradores (Sysmon 12 y 13)
+    attack: T1136.001
+    module: M2 · Windows y Linux
+    files: ["Persistence/sysmon_local_account_creation_and_added_admingroup_12_13.evtx"]
+  kerbrute:
+    title: Enumeración de usuarios por Kerberos con Kerbrute (4768 y 4771)
+    attack: T1087.002
+    module: M3 · Active Directory
+    source: evtx-to-mitre
+    files: ["TA0006-Credential Access/T1110.xxx-Brut force/ID4768-4771-Kerberos user enumeration (Kerbrute).evtx"]
+  ntlm-bruteforce:
+    title: Fuerza bruta contra cuentas locales por NTLM (4776 y 4625)
+    attack: T1110.001
+    module: M3 · Active Directory
+    source: evtx-to-mitre
+    files: ["TA0006-Credential Access/T1110.xxx-Brut force/ID 4776,4625-AccountRestore local bruteforce.evtx"]
+  kerberoast:
+    title: Kerberoasting, ticket de servicio con cifrado RC4 (4769)
+    attack: T1558.003
+    module: M3 · Active Directory
+    source: evtx-to-mitre
+    files: ["TA0006-Credential Access/T1558-Steal or Forge Kerberos Tickets/ID4769-Kerberoast ticket with low encryption.evtx"]
+  asrep-roast:
+    title: AS-REP roasting, TGT sin preautenticación (4768)
+    attack: T1558.004
+    module: M3 · Active Directory
+    source: evtx-to-mitre
+    files: ["TA0006-Credential Access/T1558-Steal or Forge Kerberos Tickets/ID4768-Kerberos AS-REP Roasting.evtx"]
+  bloodhound:
+    title: Recolección de BloodHound (SharpHound) contra el dominio
+    attack: T1087.002
+    module: M3 · Active Directory
+    files: ["Discovery/discovery_bloodhound.evtx"]
+  dcsync-rights:
+    title: Permisos de replicación concedidos con PowerView (antesala del DCSync)
+    attack: T1003.006
+    module: M3 · Active Directory
+    files: ["Persistence/DACL_DCSync_Right_Powerview_ Add-DomainObjectAcl.evtx"]
+  log-cleared:
+    title: Log de seguridad borrado (1102)
+    attack: T1070.001
+    module: M6 · Logs y telemetría
+    files: ["Defense Evasion/DE_1102_security_log_cleared.evtx"]

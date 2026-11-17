@@ -4,7 +4,7 @@
   Wazuh trae miles de reglas de serie, pero algunos ataques del curso no
   generan ninguna alerta con ellas. Aquí añadimos las que faltan para que
   todos los escenarios del replayer se vean en el dashboard desde el primer día,
-  y las del servidor DNS del laboratorio (srv-dns).
+  y las de los servidores del laboratorio (DNS y proxy).
 
   Rango de IDs reservado para el laboratorio: 100100 - 100199.
   En el curso aprenderemos a escribir reglas como estas (M7 y M14).
@@ -126,6 +126,68 @@
     <group>defense_evasion,</group>
   </rule>
 
+  <!--
+    Kerberoasting (T1558.003)
+    4769 = el controlador de dominio entrega un ticket de servicio (TGS). Si se
+    pide con cifrado RC4 (0x17) para una cuenta de servicio de usuario, el
+    atacante puede crackear el ticket sin conexión y sacar su contraseña.
+    Wazuh solo lo ve como un "inicio de sesión correcto" (60106, nivel 3).
+    Excluimos krbtgt y las cuentas de máquina (terminadas en $).
+  -->
+  <rule id="100106" level="12">
+    <if_sid>60106</if_sid>
+    <field name="win.system.eventID">^4769$</field>
+    <field name="win.eventdata.ticketEncryptionType" type="pcre2">(?i)^0x17$</field>
+    <field name="win.eventdata.serviceName" type="pcre2" negate="yes">(?i)\$$|^krbtgt$</field>
+    <description>Posible Kerberoasting: ticket de servicio RC4 para $(win.eventdata.serviceName) pedido por $(win.eventdata.targetUserName)</description>
+    <options>no_full_log</options>
+    <mitre>
+      <id>T1558.003</id>
+    </mitre>
+    <group>credential_access,kerberoasting,</group>
+  </rule>
+
+  <!--
+    4768 = el controlador de dominio entrega un TGT (el "carné" de Kerberos).
+    Wazuh no lo guarda de serie (nivel 0). Lo subimos a nivel 3 para poder
+    investigar con él: es telemetría, no algo malo.
+  -->
+  <rule id="100108" level="3">
+    <if_sid>60103</if_sid>
+    <field name="win.system.eventID">^4768$</field>
+    <description>Kerberos: TGT entregado a $(win.eventdata.targetUserName) desde $(win.eventdata.ipAddress)</description>
+    <options>no_full_log</options>
+    <group>authentication_success,kerberos,</group>
+  </rule>
+
+  <!--
+    AS-REP roasting (T1558.004)
+    Un TGT entregado sin preautenticación (PreAuthType 0): la cuenta tiene
+    desactivada la preautenticación de Kerberos y su respuesta se puede crackear.
+  -->
+  <rule id="100107" level="12">
+    <if_sid>100108</if_sid>
+    <field name="win.eventdata.preAuthType">^0$</field>
+    <description>Posible AS-REP roasting: TGT sin preautenticación para $(win.eventdata.targetUserName)</description>
+    <options>no_full_log</options>
+    <mitre>
+      <id>T1558.004</id>
+    </mitre>
+    <group>credential_access,asrep_roasting,</group>
+  </rule>
+
+  <!--
+    4776 = el controlador de dominio (o el equipo) valida una contraseña por NTLM.
+    De serie, los correctos no se guardan; los subimos a nivel 3 (telemetría).
+  -->
+  <rule id="100109" level="3">
+    <if_sid>60103</if_sid>
+    <field name="win.system.eventID">^4776$</field>
+    <description>NTLM: credenciales de $(win.eventdata.targetUserName) validadas en $(win.system.computer)</description>
+    <options>no_full_log</options>
+    <group>authentication_success,ntlm,</group>
+  </rule>
+
 </group>
 
 <!--
@@ -185,6 +247,23 @@
       <id>T1071.004</id>
     </mitre>
     <group>dns_tunnel,</group>
+  </rule>
+
+</group>
+
+<!--
+  Proxy de salida (srv-proxy, Squid)
+  Cada petición que pasa por el proxy y sale bien (códigos 2xx y 3xx) genera
+  una alerta de nivel 3: es el registro de navegación de la empresa. Los
+  errores (4xx y 5xx) ya los cubren las reglas de serie de Wazuh (35002-35009).
+-->
+<group name="proxy,squid,soc-lab,">
+
+  <rule id="100120" level="3">
+    <if_sid>35000</if_sid>
+    <id>^2|^3</id>
+    <description>Proxy: $(srcip) ha pedido $(url) ($(action)/$(id))</description>
+    <group>proxy_access,</group>
   </rule>
 
 </group>

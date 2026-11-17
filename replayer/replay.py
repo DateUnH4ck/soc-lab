@@ -9,7 +9,9 @@ detección de ataques a Active Directory y endpoints Windows sin necesitar
 una máquina Windows (y funciona igual en PC x86 y en Mac ARM).
 
 Cómo funciona:
-  1. Descarga los .evtx del escenario (y los guarda en caché).
+  1. Descarga los .evtx del escenario de su fuente (y los guarda en caché).
+     Fuentes: EVTX-ATTACK-SAMPLES (GPLv3) y EVTX-to-MITRE-Attack (CC0),
+     cada una fijada a un commit en scenarios.yml.
   2. Convierte cada evento a XML, igual que hace el agente de Windows.
   3. Lo entrega en la cola interna del manager de Wazuh (queue/sockets/queue)
      con el mismo formato que usa el agente para el canal "EventChannel".
@@ -52,7 +54,17 @@ SYSTEMTIME_RE = re.compile(
 
 def load_catalog():
     with open(HERE / "scenarios.yml", encoding="utf-8") as fh:
-        return yaml.safe_load(fh)
+        catalog = yaml.safe_load(fh)
+    # Compatibilidad: catálogos antiguos con una sola fuente ("source")
+    if "sources" not in catalog:
+        catalog["sources"] = {"default": catalog["source"]}
+        catalog["default_source"] = "default"
+    return catalog
+
+
+def source_of(catalog, scenario):
+    key = scenario.get("source", catalog["default_source"])
+    return catalog["sources"][key]
 
 
 def print_list(catalog):
@@ -63,13 +75,15 @@ def print_list(catalog):
     print(f"  {'-' * width}  {'-' * 10} {'-' * 26} {'-' * 40}")
     for key, sc in scenarios.items():
         print(f"  {key.ljust(width)}  {sc['attack']:10} {sc['module']:26} {sc['title']}")
-    src = catalog["source"]
-    print(f"\nFuente: https://github.com/{src['repo']} (commit {src['commit'][:7]})\n")
+    print("\nFuentes de las muestras:")
+    for src in catalog["sources"].values():
+        lic = f", {src['license']}" if src.get("license") else ""
+        print(f"  · https://github.com/{src['repo']} (commit {src['commit'][:7]}{lic})")
+    print()
 
 
-def fetch(catalog, rel_path):
-    """Descarga un .evtx del repositorio fuente (con cache local)."""
-    src = catalog["source"]
+def fetch(src, rel_path):
+    """Descarga un .evtx de su repositorio fuente (con cache local)."""
     target = CACHE_DIR / src["commit"][:12] / rel_path
     if target.exists() and target.stat().st_size > 0:
         return target
@@ -169,8 +183,9 @@ def main():
     for name in names:
         sc = catalog["scenarios"][name]
         print(f"\n▶ {name} — {sc['title']} ({sc['attack']})")
+        src = source_of(catalog, sc)
         for rel in sc["files"]:
-            path = fetch(catalog, rel)
+            path = fetch(src, rel)
             sent, skipped = replay_file(sock, path, args.eps)
             total += sent
             extra = f", {skipped} omitidos" if skipped else ""

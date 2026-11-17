@@ -11,7 +11,7 @@
 #    ./tests/scenarios.sh dcsync     # solo uno
 # =============================================================================
 set -uo pipefail
-cd "$(dirname "$0")/.."
+cd "$(dirname "$0")/.." || exit 1
 
 PASS=$(grep -E '^INDEXER_PASSWORD=' .env 2>/dev/null | cut -d= -f2- || true)
 PASS=${PASS:-SecretPassword}
@@ -26,12 +26,14 @@ declare -A EXPECT=(
   [run-key]=100102
   [pass-the-hash]=100103
   [scheduled-task]=100104
+  [kerberoast]=100106
+  [asrep-roast]=100107
 )
 
 if [ $# -gt 0 ]; then
   SCENARIOS=("$@")
 else
-  mapfile -t SCENARIOS < <(sed -n 's/^  \([a-z0-9-]*\):$/\1/p' replayer/scenarios.yml)
+  mapfile -t SCENARIOS < <(awk '/^scenarios:/{f=1; next} f && /^  [a-z0-9-]+:$/{gsub(/^  |:$/, ""); print}' replayer/scenarios.yml)
 fi
 
 search() {  # $1 = desde (ISO 8601 UTC)
@@ -67,7 +69,7 @@ for sc in "${SCENARIOS[@]}"; do
   since=$(date -u +%Y-%m-%dT%H:%M:%S.000Z)
   ./lab.sh replay "$sc" >/dev/null 2>&1 || { printf "\033[1;31m  ✘ %-16s el replay ha fallado\033[0m\n" "$sc"; FAILED+=("$sc"); continue; }
   n=0
-  for i in $(seq 1 12); do
+  for _ in $(seq 1 12); do
     sleep 5
     n=$(search "$since" | total)
     [ "$n" -gt 0 ] && break
