@@ -53,6 +53,17 @@ search() {  # $1 = desde (ISO 8601 UTC)
   }'
 }
 
+debug_alerts() {  # para depurar una regla que no salta: campos de Windows de cada alerta
+  curl -sk -u "admin:${PASS}" "${IDX}/wazuh-alerts-*/_search" -H 'Content-Type: application/json' -d '{
+    "size": 10, "_source": ["rule.id", "data.win.system.eventID", "data.win.system.severityValue", "data.win.eventdata"],
+    "query": {"bool": {"filter": [
+      {"query_string": {"query": "rule.groups:windows"}},
+      {"range": {"timestamp": {"gte": "'"$1"'"}}}
+    ]}}
+  }' | python3 -c 'import sys,json
+for h in json.load(sys.stdin)["hits"]["hits"]: print("      ", json.dumps(h["_source"], ensure_ascii=False)[:600])' 2>/dev/null || true
+}
+
 total() { python3 -c 'import sys,json; print(json.load(sys.stdin)["hits"]["total"]["value"])' 2>/dev/null || echo 0; }
 
 summary() {
@@ -85,6 +96,7 @@ for sc in "${SCENARIOS[@]}"; do
   if [ -n "$want" ] && ! echo "$res" | grep -q "\"key\":\"$want\""; then
     printf "\033[1;31m  ✘ %-16s %3s alertas, pero no salta la regla %s\033[0m\n" "$sc" "$n" "$want"
     echo "$res" | summary
+    debug_alerts "$since"
     FAILED+=("$sc")
   elif [ "$n" -gt 0 ]; then
     printf "\033[1;32m  ✔ %-16s %3s alertas\033[0m\n" "$sc" "$n"
