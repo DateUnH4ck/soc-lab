@@ -7,7 +7,7 @@
 #
 #  Redes:
 #    soc  (172.30.20.0/24) -> SIEM (Wazuh) y agentes
-#    dmz  (172.30.10.0/24) -> víctimas y atacante. El atacante NO ve el SIEM.
+#    dmz  (172.30.10.0/24) -> víctimas, DNS y atacante. El atacante NO ve el SIEM.
 #
 #  Los servicios de Wazuh se basan en wazuh/wazuh-docker (GPLv2), single-node.
 # =============================================================================
@@ -86,6 +86,7 @@ services:
       - ./wazuh/certs/wazuh.manager-key.pem:/etc/ssl/filebeat.key
       - ./wazuh/manager/ossec.conf:/wazuh-config-mount/etc/ossec.conf
       - ./wazuh/manager/local_rules.xml:/wazuh-config-mount/etc/rules/local_rules.xml
+      - ./wazuh/manager/local_decoder.xml:/wazuh-config-mount/etc/decoders/local_decoder.xml
     depends_on:
       wazuh.indexer:
         condition: service_healthy
@@ -139,6 +140,7 @@ services:
       - WAZUH_AGENT_GROUP=default
     cap_add: [NET_ADMIN]          # para respuestas activas (firewall-drop)
     depends_on: [wazuh.manager]
+    dns: [172.30.10.53]           # srv-dns resuelve hackerlab.local e Internet
     networks:
       soc: {}
       dmz:
@@ -158,10 +160,33 @@ services:
       - WAZUH_AGENT_GROUP=default
     cap_add: [NET_ADMIN]
     depends_on: [wazuh.manager]
+    dns: [172.30.10.53]
     networks:
       soc: {}
       dmz:
         ipv4_address: 172.30.10.11
+
+  # ---------------------------------------------------------------------------
+  #  DNS interno de la empresa (dnsmasq) con agente Wazuh
+  #  Zona hackerlab.local; cada consulta llega a Wazuh (reglas 100110-100114).
+  # ---------------------------------------------------------------------------
+  srv-dns:
+    <<: *restart
+    build:
+      context: ./victims/dns
+      args:
+        WAZUH_VERSION: ${WAZUH_VERSION:-4.14.9}
+    image: dateunh4ck/soc-lab-srv-dns:local
+    hostname: srv-dns
+    environment:
+      - WAZUH_MANAGER_SERVER=wazuh.manager
+      - WAZUH_AGENT_NAME=srv-dns
+      - WAZUH_AGENT_GROUP=default
+    depends_on: [wazuh.manager]
+    networks:
+      soc: {}
+      dmz:
+        ipv4_address: 172.30.10.53
 
   # ---------------------------------------------------------------------------
   #  Atacante (solo en la DMZ)
@@ -173,6 +198,10 @@ services:
     image: dateunh4ck/soc-lab-attacker:local
     hostname: kali
     command: ["sleep", "infinity"]
+    depends_on: [srv-dns]
+    volumes:
+      # La Kali pregunta directamente a srv-dns (así cada consulta sale con su IP)
+      - ./attacker/resolv.conf:/etc/resolv.conf:ro
     networks:
       dmz:
         ipv4_address: 172.30.10.66
@@ -192,6 +221,12 @@ services:
       - wazuh_queue:/wazuh-queue
       - replayer-cache:/cache
     networks: [soc]
+
+  # Captura el tráfico de un contenedor a ./captures (lo lanza ./lab.sh capture).
+  capture:
+    profiles: ["tools"]
+    build: ./tools/capture
+    image: dateunh4ck/soc-lab-capture:local
 
   # Genera los certificados TLS de Wazuh (lo lanza ./lab.sh setup).
   certs:

@@ -7,3 +7,5 @@ wazuh/certs/
 Thumbs.db
 *.part
 __pycache__/
+# Capturas de tráfico (./lab.sh capture)
+captures/

