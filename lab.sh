@@ -33,10 +33,16 @@ usage() {
     up                Arranca el laboratorio
     down              Para el laboratorio (conserva alertas y agentes)
     status            Estado de contenedores y agentes Wazuh
+    update            Actualiza el laboratorio a la última versión
+                      (conserva alertas, agentes y certificados)
+    version           Muestra la versión del laboratorio
     attacker          Abre una shell en la Kali atacante
     shell <servicio>  Abre una shell en un contenedor (srv-web, srv-ssh...)
     replay [args]     Reproduce ataques de Windows en Wazuh
                       (./lab.sh replay --list  |  ./lab.sh replay dcsync)
+    capture <servicio> [segundos]
+                      Captura el tráfico de un contenedor (60 s por defecto)
+                      en captures/*.pcap, para abrirlo con Wireshark
     logs [servicio]   Muestra los logs (Ctrl+C para salir)
     reset             Borra TODOS los datos (alertas, agentes) y empieza de cero
     help              Esta ayuda
@@ -148,7 +154,7 @@ cmd_setup() {
   c_info "Descargando y construyendo imágenes (la primera vez tarda unos minutos)..."
   $COMPOSE pull --ignore-buildable --quiet
   $COMPOSE build
-  $COMPOSE --profile tools build replayer
+  $COMPOSE --profile tools build replayer capture
   $COMPOSE up -d
   wait_ready
   cmd_status
@@ -176,6 +182,92 @@ cmd_status() {
     | grep -E "ID:" || c_warn "El manager aún no responde."
 }
 
+lab_version() { cat VERSION 2>/dev/null || echo "?"; }
+
+cmd_version() {
+  local extra=""
+  if command -v git >/dev/null 2>&1 && git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+    extra=" (commit $(git rev-parse --short HEAD), $(git log -1 --format=%cd --date=short))"
+  fi
+  echo "soc-lab $(lab_version)${extra}"
+}
+
+cmd_update() {
+  check_docker
+  if ! command -v git >/dev/null 2>&1 || ! git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+    c_err "Esta carpeta no es un repositorio git (¿descargaste el ZIP?)."
+    c_err "Instálalo con 'git clone' (ver README) para poder actualizar con ./lab.sh update."
+    exit 1
+  fi
+  if [ -n "$(git status --porcelain --untracked-files=no)" ]; then
+    c_err "Has cambiado ficheros del laboratorio:"
+    git status --short --untracked-files=no
+    c_err "Guárdalos con 'git stash' (o descártalos con 'git checkout -- .') y vuelve a lanzar ./lab.sh update"
+    exit 1
+  fi
+  local before after old_ver
+  before=$(git rev-parse HEAD)
+  old_ver=$(lab_version)
+  if [ "${SOC_LAB_NO_PULL:-0}" != "1" ]; then   # SOC_LAB_NO_PULL=1 solo lo usa la CI
+    c_info "Descargando la última versión..."
+    if ! git pull --ff-only; then
+      c_err "No he podido actualizar con git pull. Revisa el mensaje de arriba."
+      exit 1
+    fi
+  fi
+  after=$(git rev-parse HEAD)
+  if [ "$before" = "$after" ]; then
+    c_ok "Ya tenías la última versión del código: soc-lab $(lab_version)"
+  else
+    c_ok "soc-lab $old_ver → $(lab_version). Cambios:"
+    git --no-pager log --oneline "$before..$after" | sed 's/^/    /'
+  fi
+  ensure_env
+  if [ ! -f "$CERTS_DIR/root-ca.pem" ]; then
+    c_warn "No hay certificados: hago la instalación completa"
+    cmd_setup
+    return
+  fi
+  set_max_map_count
+  c_info "Reconstruyendo y arrancando (tus alertas, agentes y certificados se conservan)..."
+  $COMPOSE --profile tools build replayer capture
+  $COMPOSE up -d --build --remove-orphans
+  if [ "$before" != "$after" ] && ! git diff --quiet "$before" "$after" -- wazuh/manager; then
+    c_info "Han cambiado las reglas o la configuración de Wazuh: reinicio el manager"
+    $COMPOSE restart wazuh.manager
+  fi
+  wait_ready
+  cmd_status
+  c_ok "Laboratorio actualizado: soc-lab $(lab_version)"
+}
+
+cmd_capture() {
+  local svc="${1:-}" secs="${2:-60}" cid file
+  if [ -z "$svc" ]; then
+    c_err "Indica el servicio. Ejemplo: ./lab.sh capture srv-ssh 30"
+    exit 1
+  fi
+  if ! [[ "$secs" =~ ^[0-9]+$ ]] || [ "$secs" -lt 1 ]; then
+    c_err "Los segundos tienen que ser un número (p. ej. 30)"
+    exit 1
+  fi
+  cid=$($COMPOSE ps -q "$svc" 2>/dev/null || true)
+  if [ -z "$cid" ]; then
+    c_err "El servicio '$svc' no está arrancado. Mira los nombres con ./lab.sh status"
+    exit 1
+  fi
+  if ! docker image inspect dateunh4ck/soc-lab-capture:local >/dev/null 2>&1; then
+    $COMPOSE --profile tools build capture
+  fi
+  mkdir -p captures
+  file="${svc}-$(date +%Y%m%d-%H%M%S).pcap"
+  c_info "Capturando el tráfico de ${svc} durante ${secs} s → captures/${file}"
+  docker run --rm --network "container:${cid}" -v "$PWD/captures:/captures" \
+    dateunh4ck/soc-lab-capture:local \
+    sh -c "timeout -s INT ${secs} tcpdump -i any -n -U -w /captures/${file}; chown $(id -u):$(id -g) /captures/${file}"
+  c_ok "Captura guardada en captures/${file} (ábrela con Wireshark)"
+}
+
 cmd_reset() {
   c_warn "Esto borra TODAS las alertas, agentes y datos del laboratorio."
   read -r -p "¿Seguro? Escribe 'si' para continuar: " answer
@@ -192,6 +284,9 @@ main() {
     up|start) cmd_up ;;
     down|stop) $COMPOSE --profile tools down ;;
     status|ps) cmd_status ;;
+    update)   cmd_update ;;
+    version|--version) cmd_version ;;
+    capture)  cmd_capture "$@" ;;
     attacker|kali) $COMPOSE exec attacker bash ;;
     shell)    $COMPOSE exec "${1:?Indica el servicio, p. ej. srv-ssh}" bash ;;
     replay)   $COMPOSE --profile tools run --rm replayer "$@" ;;

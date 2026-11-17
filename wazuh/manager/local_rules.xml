@@ -3,7 +3,8 @@
   =========================
   Wazuh trae miles de reglas de serie, pero algunos ataques del curso no
   generan ninguna alerta con ellas. Aquí añadimos las que faltan para que
-  todos los escenarios del replayer se vean en el dashboard desde el primer día.
+  todos los escenarios del replayer se vean en el dashboard desde el primer día,
+  y las del servidor DNS del laboratorio (srv-dns).
 
   Rango de IDs reservado para el laboratorio: 100100 - 100199.
   En el curso aprenderemos a escribir reglas como estas (M7 y M14).
@@ -123,6 +124,67 @@
       <id>T1218.005</id>
     </mitre>
     <group>defense_evasion,</group>
+  </rule>
+
+</group>
+
+<!--
+  DNS (srv-dns, dnsmasq)
+  En Wazuh, lo que no genera alerta (nivel 3 o más) no se guarda. Para poder
+  investigar con el log de DNS, cada consulta y cada respuesta generan una
+  alerta de nivel 3: es telemetría, no algo malo. Encima van las detecciones.
+-->
+<group name="dns,soc-lab,">
+
+  <rule id="100110" level="0">
+    <decoded_as>dnsmasq</decoded_as>
+    <description>dnsmasq: mensajes del servidor DNS</description>
+  </rule>
+
+  <rule id="100111" level="3">
+    <if_sid>100110</if_sid>
+    <field name="dns_type" type="pcre2">.</field>
+    <description>DNS: $(srcip) pregunta por $(dns_query) (tipo $(dns_type))</description>
+    <group>dns_query,</group>
+  </rule>
+
+  <rule id="100112" level="3">
+    <if_sid>100110</if_sid>
+    <field name="dns_answer" type="pcre2">.</field>
+    <description>DNS: $(dns_query) es $(dns_answer) ($(dns_origin))</description>
+    <group>dns_answer,</group>
+  </rule>
+
+  <!--
+    Subdominio muy largo (T1071.004 / T1048)
+    Los nombres normales tienen partes cortas (www, mail, srv-web). Un trozo de
+    40 caracteres o más suele ser información codificada: un túnel DNS para
+    sacar datos o hablar con un C2.
+  -->
+  <rule id="100113" level="10">
+    <if_sid>100111</if_sid>
+    <field name="dns_query" type="pcre2">(?:^|\.)[A-Za-z0-9_-]{40,}\.</field>
+    <description>DNS: subdominio muy largo en $(dns_query) desde $(srcip) (posible túnel DNS)</description>
+    <mitre>
+      <id>T1071.004</id>
+      <id>T1048</id>
+    </mitre>
+    <group>dns_tunnel,</group>
+  </rule>
+
+  <!--
+    Ráfaga de consultas (T1071.004)
+    Más de 30 consultas en un minuto desde el mismo equipo: un túnel DNS, un
+    malware probando dominios (DGA) o un escaneo de nombres.
+  -->
+  <rule id="100114" level="10" frequency="30" timeframe="60">
+    <if_matched_sid>100111</if_matched_sid>
+    <same_srcip />
+    <description>DNS: ráfaga de consultas desde $(srcip) (posible túnel DNS o DGA)</description>
+    <mitre>
+      <id>T1071.004</id>
+    </mitre>
+    <group>dns_tunnel,</group>
   </rule>
 
 </group>

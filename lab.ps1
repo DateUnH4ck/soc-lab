@@ -27,6 +27,9 @@ function Fail($m) { Write-Host "[X]  $m" -ForegroundColor Red; exit 1 }
 # lo desactivan solo para esa llamada; el resultado se comprueba con $LASTEXITCODE.
 function Invoke-DockerQuiet { $ErrorActionPreference = "Continue"; & docker @args *> $null }
 function Invoke-DockerNoErr { $ErrorActionPreference = "Continue"; & docker @args 2>$null }
+# git también escribe su progreso en stderr: mismo tratamiento.
+function Invoke-Git      { $ErrorActionPreference = "Continue"; & git @args }
+function Invoke-GitQuiet { $ErrorActionPreference = "Continue"; & git @args 2>$null }
 
 function Compose {
     & docker compose @args
@@ -53,10 +56,16 @@ function Show-Usage {
     up                Arranca el laboratorio
     down              Para el laboratorio (conserva alertas y agentes)
     status            Estado de contenedores y agentes Wazuh
+    update            Actualiza el laboratorio a la última versión
+                      (conserva alertas, agentes y certificados)
+    version           Muestra la versión del laboratorio
     attacker          Abre una shell en la Kali atacante
     shell <servicio>  Abre una shell en un contenedor (srv-web, srv-ssh...)
     replay [args]     Reproduce ataques de Windows en Wazuh
                       (.\lab.ps1 replay --list  |  .\lab.ps1 replay dcsync)
+    capture <servicio> [segundos]
+                      Captura el tráfico de un contenedor (60 s por defecto)
+                      en captures\*.pcap, para abrirlo con Wireshark
     logs [servicio]   Muestra los logs (Ctrl+C para salir)
     reset             Borra TODOS los datos (alertas, agentes) y empieza de cero
     help              Esta ayuda
@@ -145,7 +154,7 @@ function Invoke-Setup {
     Info "Descargando y construyendo imágenes (la primera vez tarda unos minutos)..."
     Compose pull --ignore-buildable --quiet
     Compose build
-    Compose --profile tools build replayer
+    Compose --profile tools build replayer capture
     Compose up -d
     Wait-Ready
     Show-Status
@@ -167,6 +176,92 @@ function Show-Status {
     Invoke-DockerNoErr compose exec -T wazuh.manager /var/ossec/bin/agent_control -l | Select-String "ID:"
 }
 
+function Get-LabVersion {
+    if (Test-Path VERSION) { return (Get-Content VERSION | Select-Object -First 1).Trim() }
+    return "?"
+}
+
+function Test-GitRepo {
+    if (-not (Get-Command git -ErrorAction SilentlyContinue)) { return $false }
+    $inside = Invoke-GitQuiet rev-parse --is-inside-work-tree
+    return ($LASTEXITCODE -eq 0 -and "$inside" -eq "true")
+}
+
+function Show-Version {
+    $extra = ""
+    if (Test-GitRepo) {
+        $commit = Invoke-GitQuiet rev-parse --short HEAD
+        $fecha  = Invoke-GitQuiet log -1 --format=%cd --date=short
+        $extra = " (commit $commit, $fecha)"
+    }
+    Write-Host "soc-lab $(Get-LabVersion)$extra"
+}
+
+function Invoke-Update {
+    Test-Docker
+    if (-not (Test-GitRepo)) {
+        Fail "Esta carpeta no es un repositorio git (¿descargaste el ZIP?). Instálalo con 'git clone' (ver README) para poder actualizar con .\lab.ps1 update."
+    }
+    $cambios = @(Invoke-GitQuiet status --porcelain --untracked-files=no)
+    if ($cambios.Count -gt 0 -and "$cambios".Trim()) {
+        Warn "Has cambiado ficheros del laboratorio:"
+        $cambios | ForEach-Object { Write-Host "    $_" }
+        Fail "Guárdalos con 'git stash' (o descártalos con 'git checkout -- .') y vuelve a lanzar .\lab.ps1 update"
+    }
+    $before = Invoke-GitQuiet rev-parse HEAD
+    $oldVer = Get-LabVersion
+    Info "Descargando la última versión..."
+    Invoke-Git pull --ff-only
+    if ($LASTEXITCODE -ne 0) { Fail "No he podido actualizar con git pull. Revisa el mensaje de arriba." }
+    $after = Invoke-GitQuiet rev-parse HEAD
+    if ($before -eq $after) {
+        Ok "Ya tenías la última versión del código: soc-lab $(Get-LabVersion)"
+    } else {
+        Ok "soc-lab $oldVer -> $(Get-LabVersion). Cambios:"
+        Invoke-Git --no-pager log --oneline "$before..$after" | ForEach-Object { Write-Host "    $_" }
+    }
+    Initialize-Env
+    if (-not (Test-Path "$CertsDir\root-ca.pem")) { Warn "No hay certificados: hago la instalación completa"; Invoke-Setup; return }
+    Set-MaxMapCount
+    Info "Reconstruyendo y arrancando (tus alertas, agentes y certificados se conservan)..."
+    Compose --profile tools build replayer capture
+    Compose up -d --build --remove-orphans
+    if ($before -ne $after) {
+        Invoke-GitQuiet diff --quiet $before $after -- wazuh/manager
+        if ($LASTEXITCODE -ne 0) {
+            Info "Han cambiado las reglas o la configuración de Wazuh: reinicio el manager"
+            Compose restart wazuh.manager
+        }
+    }
+    Wait-Ready
+    Show-Status
+    Ok "Laboratorio actualizado: soc-lab $(Get-LabVersion)"
+}
+
+function Invoke-Capture {
+    if (-not $Rest) { Fail "Indica el servicio. Ejemplo: .\lab.ps1 capture srv-ssh 30" }
+    $svc = $Rest[0]
+    $secs = 60
+    if ($Rest.Count -gt 1) {
+        if ($Rest[1] -notmatch '^[0-9]+$' -or [int]$Rest[1] -lt 1) { Fail "Los segundos tienen que ser un número (p. ej. 30)" }
+        $secs = [int]$Rest[1]
+    }
+    $cid = Invoke-DockerNoErr compose ps -q $svc
+    if (-not $cid) { Fail "El servicio '$svc' no está arrancado. Mira los nombres con .\lab.ps1 status" }
+    Invoke-DockerQuiet image inspect dateunh4ck/soc-lab-capture:local
+    if ($LASTEXITCODE -ne 0) { Compose --profile tools build capture }
+    New-Item -ItemType Directory -Force -Path captures | Out-Null
+    $file = "$svc-$(Get-Date -Format 'yyyyMMdd-HHmmss').pcap"
+    $dir = Join-Path (Get-Location).Path "captures"
+    Info "Capturando el tráfico de $svc durante $secs s -> captures\$file"
+    $ErrorActionPreference = "Continue"
+    & docker run --rm --network "container:$cid" -v "${dir}:/captures" dateunh4ck/soc-lab-capture:local `
+        sh -c "timeout -s INT $secs tcpdump -i any -n -U -w /captures/$file; exit 0"
+    $ErrorActionPreference = "Stop"
+    if (-not (Test-Path (Join-Path $dir $file))) { Fail "No se ha creado la captura. Revisa que Docker Desktop comparte esta carpeta." }
+    Ok "Captura guardada en captures\$file (ábrela con Wireshark)"
+}
+
 function Invoke-Reset {
     Warn "Esto borra TODAS las alertas, agentes y datos del laboratorio."
     $answer = Read-Host "¿Seguro? Escribe 'si' para continuar"
@@ -180,6 +275,9 @@ switch ($Command.ToLower()) {
     { $_ -in "up", "start" }   { Invoke-Up }
     { $_ -in "down", "stop" }  { Compose --profile tools down }
     { $_ -in "status", "ps" }  { Show-Status }
+    "update"   { Invoke-Update }
+    { $_ -in "version", "--version" } { Show-Version }
+    "capture"  { Invoke-Capture }
     { $_ -in "attacker", "kali" } { & docker compose exec attacker bash }
     "shell"    {
         if (-not $Rest) { Fail "Indica el servicio, p. ej.: .\lab.ps1 shell srv-ssh" }

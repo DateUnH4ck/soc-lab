@@ -1,0 +1,4 @@
+#!/usr/bin/with-contenv bash
+# Esperamos a que rsyslog cree /dev/log para no perder las primeras consultas
+for i in $(seq 1 20); do [ -S /dev/log ] && break; sleep 0.5; done
+exec dnsmasq --keep-in-foreground --conf-file=/etc/dnsmasq-lab/dnsmasq.conf

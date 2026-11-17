@@ -29,17 +29,22 @@ como harías en un SOC de verdad.
    │            ▲                      ▲       │
    │            └──── kali (atacante) ─┘       │
    │                  172.30.10.66             │
+   │                       │ consultas DNS     │
+   │                       ▼                   │
+   │              srv-dns (dnsmasq) ── agente ─┼──► Wazuh
+   │              172.30.10.53                 │
    └───────────────────────────────────────────┘
                   red dmz (172.30.10.0/24)
 ```
 
-## Qué incluye (fase 1)
+## Qué incluye (versión 1.1)
 
 | Pieza | Qué es | Para qué la usamos |
 |---|---|---|
 | **Wazuh 4.14** | SIEM + XDR open source (indexer, manager y dashboard) | Ver alertas, buscar en logs, investigar |
 | **srv-web** | Servidor nginx con agente Wazuh | Escaneos web, fuerza bruta, defacement (FIM) |
 | **srv-ssh** | Servidor Linux con OpenSSH y agente Wazuh | Fuerza bruta SSH, accesos, persistencia |
+| **srv-dns** | DNS de la empresa (dnsmasq, zona `hackerlab.local`) con agente Wazuh | Ver cada consulta DNS en el SIEM, túneles DNS |
 | **kali** | Kali Linux con nmap, hydra, nikto... | Atacar a las víctimas (solo dentro del lab) |
 | **replayer** | Inyecta en Wazuh eventos reales de ataques a Windows | Practicar Active Directory y Sysmon **sin una VM Windows** |
 | **Reglas propias** | Detecciones que Wazuh no trae de serie (p. ej. DCSync) | Que todos los ataques del curso generen alerta desde el primer día |
@@ -92,8 +97,33 @@ El navegador avisará de que el certificado es autofirmado: es normal, acéptalo
 | `./lab.sh shell srv-ssh` | `.\lab.ps1 shell srv-ssh` | Shell en una víctima |
 | `./lab.sh replay --list` | `.\lab.ps1 replay --list` | Lista los ataques de Windows disponibles |
 | `./lab.sh replay dcsync` | `.\lab.ps1 replay dcsync` | Reproduce un ataque en Wazuh |
+| `./lab.sh capture srv-ssh 30` | `.\lab.ps1 capture srv-ssh 30` | Captura 30 s de tráfico en `captures/` (para Wireshark) |
 | `./lab.sh logs srv-web` | `.\lab.ps1 logs srv-web` | Logs de un servicio |
+| `./lab.sh update` | `.\lab.ps1 update` | Actualiza el laboratorio a la última versión |
+| `./lab.sh version` | `.\lab.ps1 version` | Versión que tienes instalada |
 | `./lab.sh reset` | `.\lab.ps1 reset` | Borra todos los datos y empieza de cero |
+
+## Actualizar el laboratorio
+
+El laboratorio crece con el curso: algunos episodios necesitan piezas nuevas.
+Si ya lo tenías instalado, no hace falta borrarlo ni instalarlo otra vez:
+
+```bash
+./lab.sh update        # Windows: .\lab.ps1 update
+```
+
+Descarga la última versión, reconstruye lo que haya cambiado y lo arranca.
+**Conserva tus alertas, tus agentes y tus certificados.** Al terminar te dice de
+qué versión a qué versión has pasado y qué ha cambiado ([CHANGELOG.md](CHANGELOG.md)).
+
+- Cada episodio indica en su página de [curso-analista-soc](https://github.com/DateUnH4ck/curso-analista-soc)
+  qué versión del laboratorio necesita. Mira la tuya con `./lab.sh version`.
+- Si has cambiado algún fichero del laboratorio, `update` se para y te lo dice:
+  guarda tus cambios con `git stash` (o descártalos con `git checkout -- .`) y repite.
+- Si lo descargaste como ZIP en lugar de con `git clone`, `update` no funciona:
+  vuelve a instalarlo con `git clone` (sección *Instalación*).
+- ¿Tienes una versión de antes de la 1.1 (sin `update`)? Hazlo una vez a mano:
+  `git pull` y después `./lab.sh update`.
 
 ## Tu primer ataque (y tu primera alerta)
 
@@ -130,16 +160,34 @@ Wazuh no lo detecta de serie, y en el curso veremos cómo se escribe una regla a
 
 Catálogo completo: [docs/escenarios.md](docs/escenarios.md)
 
+## El DNS de la empresa
+
+srv-dns es el DNS interno de Hackerlab Logística: la Kali y los servidores le
+preguntan a él, y cada consulta llega a Wazuh.
+
+```bash
+./lab.sh attacker
+dig srv-web.hackerlab.local      # nombres internos de la empresa
+dig MX hackerlab.local           # registros de correo, TXT (SPF), PTR...
+dig -x 172.30.10.11              # resolución inversa
+```
+
+Dashboard → **Threat Hunting** → `agent.name: srv-dns`. Cada consulta es una alerta
+de nivel 3 (`rule.id: 100111`) y cada respuesta otra (`100112`): en Wazuh, lo que no
+genera alerta no se guarda. Encima van dos detecciones del laboratorio: subdominio
+muy largo (`100113`) y ráfaga de consultas desde un mismo equipo (`100114`), las
+huellas típicas de un túnel DNS. El dominio `malo.test` hace de dominio del
+atacante: cualquier subdominio suyo resuelve a la Kali.
+
 ## Cosas que conviene saber
 
-- **Dos IPs por víctima.** srv-web y srv-ssh tienen dos tarjetas de red: una en la
+- **Dos IPs por servidor.** srv-web, srv-ssh y srv-dns tienen dos tarjetas de red: una en la
   DMZ (172.30.10.x), por donde las ataca la Kali, y otra en la red `soc`
   (172.30.20.x), por donde hablan con Wazuh. Por eso en el dashboard verás
   srv-ssh como 172.30.20.x aunque lo ataques en 172.30.10.11.
 - **Horas en UTC.** La Kali y los logs van en UTC; tu ordenador y el dashboard,
   en tu hora local. Convertir zonas horarias es parte del trabajo en un SOC.
-- **Después de un `git pull`**, `./lab.sh up` reconstruye solo lo que haya cambiado
-  (la Kali y las víctimas); tarda unos segundos.
+- **Para actualizar**, usa `./lab.sh update` (ver *Actualizar el laboratorio*).
 - **Busca los agentes por nombre** (`agent.name: srv-ssh`), no por número: el ID
   puede cambiar entre instalaciones.
 - La primera vez que abres el dashboard, el resumen de agentes puede tardar un
@@ -157,6 +205,7 @@ Catálogo completo: [docs/escenarios.md](docs/escenarios.md)
 ## Hoja de ruta del laboratorio
 
 - [x] **Fase 1** · Wazuh + víctimas Linux + Kali + replayer de Windows (temporadas 1-2)
+- [x] **1.1** · DNS de la empresa (srv-dns), capturas de tráfico y `update`
 - [ ] **Fase 2** · Phishing y CTI: Mailpit, MISP, TheHive + Cortex, CyberChef
 - [ ] **Fase 3** · Red, endpoint e IR: Suricata, Zeek, Velociraptor, Elastic, VM Windows opcional
 - [ ] **Fase 4** · Detección y automatización: Sigma, Atomic Red Team, Shuffle SOAR

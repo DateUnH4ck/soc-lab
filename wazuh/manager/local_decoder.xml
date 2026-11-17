@@ -1,0 +1,42 @@
+<!--
+  Decoders propios de soc-lab
+  ===========================
+  Un decoder convierte una línea de log en campos (IP, dominio, tipo...) para
+  que las reglas puedan trabajar con ellos. Wazuh no trae decoder para dnsmasq,
+  el DNS de srv-dns, así que lo añadimos aquí. En el curso aprenderemos a
+  escribirlos (M7).
+
+  Líneas de ejemplo (/var/log/dnsmasq.log de srv-dns):
+    Nov 17 16:00:00 srv-dns dnsmasq[12]: query[A] srv-web.hackerlab.local from 172.30.10.66
+    Nov 17 16:00:00 srv-dns dnsmasq[12]: config srv-web.hackerlab.local is 172.30.10.10
+    Nov 17 16:00:01 srv-dns dnsmasq[12]: forwarded example.com to 127.0.0.11
+    Nov 17 16:00:01 srv-dns dnsmasq[12]: reply example.com is 93.184.215.14
+-->
+
+<decoder name="dnsmasq">
+  <program_name>^dnsmasq$</program_name>
+</decoder>
+
+<!-- Pregunta: quién (srcip) pregunta qué nombre (dns_query) y de qué tipo (dns_type) -->
+<decoder name="dnsmasq-query">
+  <parent>dnsmasq</parent>
+  <prematch type="pcre2">^query\[</prematch>
+  <regex type="pcre2">^query\[(\S+)\] (\S+) from (\S+)</regex>
+  <order>dns_type,dns_query,srcip</order>
+</decoder>
+
+<!-- Respuesta: de dónde sale (reply = de fuera, cached = de la caché, config = zona propia) -->
+<decoder name="dnsmasq-answer">
+  <parent>dnsmasq</parent>
+  <prematch type="pcre2">^(?:reply|cached|config) </prematch>
+  <regex type="pcre2">^(reply|cached|config) (\S+) is (.+)$</regex>
+  <order>dns_origin,dns_query,dns_answer</order>
+</decoder>
+
+<!-- Reenvío a otro servidor DNS -->
+<decoder name="dnsmasq-forward">
+  <parent>dnsmasq</parent>
+  <prematch type="pcre2">^forwarded </prematch>
+  <regex type="pcre2">^forwarded (\S+) to (\S+)</regex>
+  <order>dns_query,dns_server</order>
+</decoder>
