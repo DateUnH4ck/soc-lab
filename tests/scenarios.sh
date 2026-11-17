@@ -28,6 +28,10 @@ declare -A EXPECT=(
   [scheduled-task]=100104
   [kerberoast]=100106
   [asrep-roast]=100107
+  [uac-bypass]=100130
+  [local-account]=100131
+  [bloodhound]=100133
+  [dcsync-rights]=100134
 )
 
 if [ $# -gt 0 ]; then

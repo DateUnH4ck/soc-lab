@@ -118,7 +118,7 @@ check "Turno: soporte intenta sudo sin permiso" 'agent.name:srv-ssh AND rule.id:
 check "Turno: fuerza bruta con acceso (40112)"  'agent.name:srv-ssh AND rule.id:40112'
 check "Turno: crontab cambiado (cron)"          'agent.name:srv-ssh AND rule.id:2832'
 check "Turno: crontab de soporte (FIM)"         'agent.name:srv-ssh AND syscheck.path:*cron*'
-check "Turno: usuario nuevo (log)"              'agent.name:srv-ssh AND rule.id:5902'
+check "Turno: usuario nuevo (log)"              'agent.name:srv-ssh AND rule.id:(5901 OR 5902)'
 check "Turno: /etc/passwd cambiado (FIM)"       'agent.name:srv-ssh AND syscheck.path:*passwd'
 check "Turno: escaneo web por HTTPS"            'agent.name:srv-web AND rule.groups:web AND full_log:*tls*'
 check "Turno: replays de Windows"               'rule.id:60154'

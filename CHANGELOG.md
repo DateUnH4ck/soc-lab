@@ -20,7 +20,11 @@ Todo lo que necesita la temporada 1 del curso (episodios E07 a E18).
   `ntlm-bruteforce`, `kerberoast`, `asrep-roast`, `bloodhound`,
   `dcsync-rights` y `log-cleared`.
 - Reglas nuevas: Kerberoasting (`100106`), AS-REP roasting (`100107`), TGT de
-  Kerberos 4768 (`100108`) y validación NTLM 4776 (`100109`) como telemetría.
+  Kerberos 4768 (`100108`) y validación NTLM 4776 (`100109`) como telemetría,
+  bypass de UAC con eventvwr (`100130`), cuenta local creada y grupo
+  Administradores cambiado en el registro SAM (`100131` y `100132`),
+  reconocimiento por SAMR sobre IPC$ como el de BloodHound (`100133`) y
+  permisos cambiados en la raíz del dominio, la antesala del DCSync (`100134`).
 - **srv-ssh**: cron (cronie, log en `/var/log/cron`), `sudo` para el grupo
   `wheel` (mgarcia) y FIM en tiempo real sobre `/etc`, `/var/spool/cron` y
   `/home` (sin mostrar nunca el contenido de `/etc/shadow`).
