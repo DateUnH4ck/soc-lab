@@ -119,6 +119,17 @@ check "Turno: fuerza bruta con acceso (40112)"  'agent.name:srv-ssh AND rule.id:
 check "Turno: crontab cambiado (cron)"          'agent.name:srv-ssh AND rule.id:2832'
 check "Turno: crontab de soporte (FIM)"         'agent.name:srv-ssh AND syscheck.path:*cron*'
 check "Turno: usuario nuevo (log)"              'agent.name:srv-ssh AND rule.id:(5901 OR 5902)'
+if [ "$(count 'agent.name:srv-ssh AND rule.id:(5901 OR 5902)')" -eq 0 ]; then
+  echo "  [diagnóstico] líneas de useradd en /var/log/secure de srv-ssh:"
+  docker compose exec -T srv-ssh sh -c 'grep -iE "useradd|groupadd" /var/log/secure /var/log/messages | tail -n 6' || true
+  echo "  [diagnóstico] alertas de srv-ssh de los últimos 10 minutos:"
+  curl -sk -u "admin:${PASS}" "${IDX}/wazuh-alerts-*/_search" -H 'Content-Type: application/json' -d '{
+    "size": 0, "query": {"bool": {"filter": [{"query_string": {"query": "agent.name:srv-ssh"}},
+    {"range": {"timestamp": {"gte": "now-10m"}}}]}},
+    "aggs": {"r": {"terms": {"field": "rule.id", "size": 30}, "aggs": {"d": {"terms": {"field": "rule.description", "size": 1}}}}}}' \
+    | python3 -c 'import sys,json
+for b in json.load(sys.stdin)["aggregations"]["r"]["buckets"]: print("      ", b["key"], b["doc_count"], b["d"]["buckets"][0]["key"][:80])' || true
+fi
 check "Turno: /etc/passwd cambiado (FIM)"       'agent.name:srv-ssh AND syscheck.path:*passwd'
 check "Turno: escaneo web por HTTPS"            'agent.name:srv-web AND rule.groups:web AND full_log:*tls*'
 check "Turno: replays de Windows"               'rule.id:60154'
