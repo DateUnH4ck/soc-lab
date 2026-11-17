@@ -25,6 +25,8 @@ Todo lo que necesita la temporada 1 del curso (episodios E07 a E18).
   Administradores cambiado en el registro SAM (`100131` y `100132`),
   reconocimiento por SAMR sobre IPC$ como el de BloodHound (`100133`) y
   permisos cambiados en la raíz del dominio, la antesala del DCSync (`100134`).
+  Telemetría de nivel 3 para los tickets de servicio 4769 (`100135`) y los
+  inicios de sesión remotos 4624 (`100136`), que Wazuh 4.14 no guarda de serie.
 - **srv-ssh**: cron (cronie, log en `/var/log/cron`), `sudo` para el grupo
   `wheel` (mgarcia) y FIM en tiempo real sobre `/etc`, `/var/spool/cron` y
   `/home` (sin mostrar nunca el contenido de `/etc/shadow`).

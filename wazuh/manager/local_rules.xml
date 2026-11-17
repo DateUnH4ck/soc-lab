@@ -287,6 +287,30 @@
     <group>persistence,dcsync,</group>
   </rule>
 
+  <!--
+    Inicios de sesión remotos y tickets de servicio como telemetría
+    En Wazuh 4.14, un inicio de sesión correcto (4624) o un ticket de servicio
+    (4769) que traen IP de origen caen en la regla 92651, de nivel 0: no se
+    guardan. Sin ellos no se puede reconstruir un ataque a Active Directory,
+    así que los subimos a nivel 3. Las detecciones (100106, 92652...) se
+    evalúan antes y tienen prioridad.
+  -->
+  <rule id="100135" level="3">
+    <if_sid>92651</if_sid>
+    <field name="win.system.eventID">^4769$</field>
+    <description>Kerberos: ticket de servicio para $(win.eventdata.serviceName) entregado a $(win.eventdata.targetUserName) desde $(win.eventdata.ipAddress)</description>
+    <options>no_full_log</options>
+    <group>authentication_success,kerberos,</group>
+  </rule>
+
+  <rule id="100136" level="3">
+    <if_sid>92651</if_sid>
+    <field name="win.system.eventID">^4624$</field>
+    <description>Inicio de sesión remoto de $(win.eventdata.targetUserName) desde $(win.eventdata.ipAddress) (tipo $(win.eventdata.logonType))</description>
+    <options>no_full_log</options>
+    <group>authentication_success,</group>
+  </rule>
+
 </group>
 
 <!--

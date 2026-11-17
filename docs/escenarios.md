@@ -66,6 +66,7 @@ con un commit fijado de cada una en `replayer/scenarios.yml`, y se guardan en ca
 Para añadir un escenario, añade una entrada en `replayer/scenarios.yml` (con
 `source:` si la muestra viene de otra fuente).
 
-Las reglas del lab de Kerberos y NTLM (**100108** TGT 4768 y **100109** validación
-NTLM 4776) son telemetría de nivel 3: de serie Wazuh no guarda esos eventos y,
+Las reglas del lab **100108** (TGT 4768), **100109** (validación NTLM 4776),
+**100135** (ticket de servicio 4769 con IP) y **100136** (inicio de sesión remoto
+4624 con IP) son telemetría de nivel 3: de serie Wazuh no guarda esos eventos y,
 sin ellos, no se puede investigar un ataque a Active Directory.
