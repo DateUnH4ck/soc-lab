@@ -271,7 +271,7 @@ function Invoke-Turno {
     Info "No mires esta ventana: abre Wazuh (Threat Hunting) y trabaja la cola de alertas."
     $n = 0
     foreach ($linea in $pasos) {
-        $partes = $linea.Split([char]'|', 3)
+        $partes = $linea.Split([char[]]@('|'), 3)
         if ($partes.Count -lt 3) { continue }
         $n++
         Start-Sleep -Seconds ([int]$partes[0])

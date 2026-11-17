@@ -83,7 +83,7 @@ try {
 # 8. tools/turno/pasos.txt: cada paso se parte bien en PowerShell (espera|servicio|comando)
 $pasos = @(Get-Content -Encoding UTF8 (Join-Path $root "tools\turno\pasos.txt") | Where-Object { $_.Trim() -and -not $_.Trim().StartsWith("#") })
 $malos = @($pasos | Where-Object {
-    $p = $_.Split([char]'|', 3)
+    $p = $_.Split([char[]]@('|'), 3)
     $p.Count -ne 3 -or $p[0] -notmatch '^[0-9]+$' -or -not $p[1] -or -not $p[2] -or $p[2].Contains('"')
 })
 if ($pasos.Count -gt 0 -and $malos.Count -eq 0) { Ok "Turno: $($pasos.Count) pasos bien formados (sin comillas dobles)" }
@@ -97,10 +97,10 @@ Set-Content -Path (Join-Path $dir "docker.cmd") -Encoding Ascii -Value @(
     "exit /b 0"
 )
 $cmd = $pasos | Where-Object { $_ -like "*sshpass*" } | Select-Object -First 1
-$cmd = $cmd.Split([char]'|', 3)[2]
+$cmd = $cmd.Split([char[]]@('|'), 3)[2]
 Invoke-DockerQuiet compose exec -T attacker sh -c $cmd
 $recibido = Get-Content (Join-Path $env:TEMP "soc-lab-args.txt") -Raw
-if ($recibido -like "*sudo -n true*" -and $recibido -like "*crontab /tmp/.c*") { Ok "Turno: el comando llega entero a docker" }
+if ($recibido -like "*sudo -S -p x true*" -and $recibido -like "*crontab /tmp/.c*") { Ok "Turno: el comando llega entero a docker" }
 else { Mal "Turno: el comando llega cortado a docker: $recibido" }
 
 Remove-Item -Recurse -Force $dir
