@@ -66,6 +66,8 @@ function Show-Usage {
     capture <servicio> [segundos]
                       Captura el tráfico de un contenedor (60 s por defecto)
                       en captures\*.pcap, para abrirlo con Wireshark
+    turno             Simula un turno de N1: durante unos minutos pasa de
+                      todo en la empresa y tú trabajas la cola en Wazuh
     logs [servicio]   Muestra los logs (Ctrl+C para salir)
     reset             Borra TODOS los datos (alertas, agentes) y empieza de cero
     help              Esta ayuda
@@ -262,6 +264,28 @@ function Invoke-Capture {
     Ok "Captura guardada en captures\$file (ábrela con Wireshark)"
 }
 
+function Invoke-Turno {
+    $file = Join-Path $PSScriptRoot "tools\turno\pasos.txt"
+    $pasos = @(Get-Content -Encoding UTF8 $file | Where-Object { $_.Trim() -and -not $_.Trim().StartsWith("#") })
+    Info "Empieza tu turno. Durante unos minutos van a pasar cosas en Hackerlab Logística."
+    Info "No mires esta ventana: abre Wazuh (Threat Hunting) y trabaja la cola de alertas."
+    $n = 0
+    foreach ($linea in $pasos) {
+        $partes = $linea.Split([char[]]@('|'), 3)
+        if ($partes.Count -lt 3) { continue }
+        $n++
+        Start-Sleep -Seconds ([int]$partes[0])
+        Write-Host -NoNewline "`r  actividad $n de $($pasos.Count) en marcha... "
+        if ($partes[1] -eq "replay") {
+            Invoke-DockerQuiet compose --profile tools run --rm replayer $partes[2]
+        } else {
+            Invoke-DockerQuiet compose exec -T $partes[1] sh -c $partes[2]
+        }
+    }
+    Write-Host ""
+    Ok "Se acabó la actividad. Tu turno sigue: termina la cola, abre los tickets y escribe la nota de relevo."
+}
+
 function Invoke-Reset {
     Warn "Esto borra TODAS las alertas, agentes y datos del laboratorio."
     $answer = Read-Host "¿Seguro? Escribe 'si' para continuar"
@@ -278,6 +302,7 @@ switch ($Command.ToLower()) {
     "update"   { Invoke-Update }
     { $_ -in "version", "--version" } { Show-Version }
     "capture"  { Invoke-Capture }
+    "turno"    { Invoke-Turno }
     { $_ -in "attacker", "kali" } { & docker compose exec attacker bash }
     "shell"    {
         if (-not $Rest) { Fail "Indica el servicio, p. ej.: .\lab.ps1 shell srv-ssh" }

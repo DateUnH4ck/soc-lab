@@ -4,7 +4,7 @@
   Wazuh trae miles de reglas de serie, pero algunos ataques del curso no
   generan ninguna alerta con ellas. Aquí añadimos las que faltan para que
   todos los escenarios del replayer se vean en el dashboard desde el primer día,
-  y las del servidor DNS del laboratorio (srv-dns).
+  y las de los servidores del laboratorio (DNS y proxy).
 
   Rango de IDs reservado para el laboratorio: 100100 - 100199.
   En el curso aprenderemos a escribir reglas como estas (M7 y M14).
@@ -126,6 +126,191 @@
     <group>defense_evasion,</group>
   </rule>
 
+  <!--
+    Kerberoasting (T1558.003)
+    4769 = el controlador de dominio entrega un ticket de servicio (TGS). Si se
+    pide con cifrado RC4 (0x17) para una cuenta de servicio de usuario, el
+    atacante puede crackear el ticket sin conexión y sacar su contraseña.
+    Wazuh solo lo ve como un "inicio de sesión correcto" (60106, nivel 3) o,
+    si trae IP de origen, como "inicio de sesión remoto" (92651, nivel 0: ni se
+    guarda). Por eso la regla cuelga de las dos.
+    Excluimos krbtgt y las cuentas de máquina (terminadas en $).
+  -->
+  <rule id="100106" level="12">
+    <if_sid>60106, 92651</if_sid>
+    <field name="win.system.eventID">^4769$</field>
+    <field name="win.eventdata.ticketEncryptionType" type="pcre2">(?i)^0x0*17$</field>
+    <field name="win.eventdata.serviceName" type="pcre2" negate="yes">(?i)\$$|^krbtgt$</field>
+    <description>Posible Kerberoasting: ticket de servicio RC4 para $(win.eventdata.serviceName) pedido por $(win.eventdata.targetUserName)</description>
+    <options>no_full_log</options>
+    <mitre>
+      <id>T1558.003</id>
+    </mitre>
+    <group>credential_access,kerberoasting,</group>
+  </rule>
+
+  <!--
+    4768 = el controlador de dominio entrega un TGT (el "carné" de Kerberos).
+    Wazuh no lo guarda de serie (nivel 0). Lo subimos a nivel 3 para poder
+    investigar con él: es telemetría, no algo malo.
+  -->
+  <rule id="100108" level="3">
+    <if_sid>60103</if_sid>
+    <field name="win.system.eventID">^4768$</field>
+    <description>Kerberos: TGT entregado a $(win.eventdata.targetUserName) desde $(win.eventdata.ipAddress)</description>
+    <options>no_full_log</options>
+    <group>authentication_success,kerberos,</group>
+  </rule>
+
+  <!--
+    AS-REP roasting (T1558.004)
+    Un TGT entregado sin preautenticación (PreAuthType 0): la cuenta tiene
+    desactivada la preautenticación de Kerberos y su respuesta se puede crackear.
+  -->
+  <rule id="100107" level="12">
+    <if_sid>100108</if_sid>
+    <field name="win.eventdata.preAuthType">^0$</field>
+    <description>Posible AS-REP roasting: TGT sin preautenticación para $(win.eventdata.targetUserName)</description>
+    <options>no_full_log</options>
+    <mitre>
+      <id>T1558.004</id>
+    </mitre>
+    <group>credential_access,asrep_roasting,</group>
+  </rule>
+
+  <!--
+    4776 = el controlador de dominio (o el equipo) valida una contraseña por NTLM.
+    De serie, los correctos no se guardan; los subimos a nivel 3 (telemetría).
+  -->
+  <rule id="100109" level="3">
+    <if_sid>60103</if_sid>
+    <field name="win.system.eventID">^4776$</field>
+    <description>NTLM: credenciales de $(win.eventdata.targetUserName) validadas en $(win.system.computer)</description>
+    <options>no_full_log</options>
+    <group>authentication_success,ntlm,</group>
+  </rule>
+
+</group>
+
+<!--
+  Windows (2): más detecciones para los escenarios de soc-lab 1.2 (100130-100139)
+-->
+<group name="windows,soc-lab,">
+
+  <!--
+    Bypass de UAC con eventvwr.exe (T1548.002)
+    eventvwr.exe se ejecuta con privilegios altos sin preguntar, y antes abre lo
+    que diga HKCU\Software\Classes\mscfile\shell\open\command. Quien escribe
+    ahí un programa consigue que se ejecute como administrador sin el aviso de
+    UAC. Wazuh vigila de serie las claves de ms-settings y Folder, no esta.
+  -->
+  <rule id="100130" level="12">
+    <if_group>sysmon_event_13</if_group>
+    <field name="win.eventdata.targetObject" type="pcre2">(?i)mscfile\\+shell\\+open\\+command</field>
+    <description>Bypass de UAC: $(win.eventdata.image) ha escrito en la clave de mscfile que abre eventvwr.exe ($(win.eventdata.details))</description>
+    <options>no_full_log</options>
+    <mitre>
+      <id>T1548.002</id>
+    </mitre>
+    <group>privilege_escalation,</group>
+  </rule>
+
+  <!--
+    Cuenta local creada (T1136.001)
+    Las cuentas locales viven en el registro, en HKLM\SAM\SAM\Domains\Account\Users\Names.
+    Con Sysmon, crear una deja un evento 12 (CreateKey) con el nombre de la cuenta.
+  -->
+  <rule id="100131" level="10">
+    <if_sid>61614</if_sid>
+    <field name="win.eventdata.eventType">^CreateKey$</field>
+    <field name="win.eventdata.targetObject" type="pcre2">(?i)SAM\\+Domains\\+Account\\+Users\\+Names\\+[^\\]+$</field>
+    <description>Cuenta local creada en el registro SAM: $(win.eventdata.targetObject)</description>
+    <options>no_full_log</options>
+    <mitre>
+      <id>T1136.001</id>
+    </mitre>
+    <group>persistence,account_changed,</group>
+  </rule>
+
+  <!--
+    Miembros del grupo Administradores cambiados, visto en el registro (T1098)
+    El grupo Administradores (alias 0x220) se guarda en ...\Builtin\Aliases\00000220.
+  -->
+  <rule id="100132" level="10">
+    <if_group>sysmon_event_13</if_group>
+    <field name="win.eventdata.targetObject" type="pcre2">(?i)SAM\\+Domains\\+Builtin\\+Aliases\\+00000220\\+C$</field>
+    <description>Cambio en los miembros del grupo Administradores (registro SAM) por $(win.eventdata.image)</description>
+    <options>no_full_log</options>
+    <mitre>
+      <id>T1098</id>
+    </mitre>
+    <group>persistence,group_changed,</group>
+  </rule>
+
+  <!--
+    Enumeración por SAMR, LSARPC o SRVSVC sobre IPC$ (T1087.002)
+    5145 = acceso a un recurso compartido. SharpHound (el recolector de
+    BloodHound) y otras herramientas de reconocimiento abren estas "tuberías"
+    de IPC$ para listar usuarios, grupos y sesiones de cada equipo.
+  -->
+  <rule id="100133" level="8">
+    <if_sid>60103</if_sid>
+    <field name="win.system.eventID">^5145$</field>
+    <field name="win.eventdata.shareName" type="pcre2">(?i)IPC\$$</field>
+    <field name="win.eventdata.relativeTargetName" type="pcre2">(?i)^(samr|lsarpc|srvsvc)$</field>
+    <description>Reconocimiento: $(win.eventdata.subjectUserName) desde $(win.eventdata.ipAddress) abre $(win.eventdata.relativeTargetName) en IPC$ (típico de BloodHound/SharpHound)</description>
+    <options>no_full_log</options>
+    <mitre>
+      <id>T1087.002</id>
+    </mitre>
+    <group>discovery,</group>
+  </rule>
+
+  <!--
+    Permisos cambiados en la raíz del dominio (T1098)
+    5136 con el atributo nTSecurityDescriptor sobre el objeto DC=...,DC=... (la
+    raíz del dominio): alguien ha cambiado quién puede hacer qué en todo el
+    dominio. Es como se concede a una cuenta normal el permiso para hacer DCSync
+    (PowerView Add-DomainObjectAcl). Casi nunca pasa de forma legítima.
+  -->
+  <rule id="100134" level="12">
+    <if_sid>60229</if_sid>
+    <field name="win.eventdata.attributeLDAPDisplayName">^nTSecurityDescriptor$</field>
+    <field name="win.eventdata.objectDN" type="pcre2">(?i)^DC=[^,]+(,DC=[^,]+)*$</field>
+    <field name="win.eventdata.operationType" type="pcre2">14674</field>
+    <description>Permisos cambiados en la raíz del dominio $(win.eventdata.objectDN) por $(win.eventdata.subjectUserName): posible concesión de DCSync</description>
+    <options>no_full_log</options>
+    <mitre>
+      <id>T1098</id>
+      <id>T1003.006</id>
+    </mitre>
+    <group>persistence,dcsync,</group>
+  </rule>
+
+  <!--
+    Inicios de sesión remotos y tickets de servicio como telemetría
+    En Wazuh 4.14, un inicio de sesión correcto (4624) o un ticket de servicio
+    (4769) que traen IP de origen caen en la regla 92651, de nivel 0: no se
+    guardan. Sin ellos no se puede reconstruir un ataque a Active Directory,
+    así que los subimos a nivel 3. Las detecciones (100106, 92652...) se
+    evalúan antes y tienen prioridad.
+  -->
+  <rule id="100135" level="3">
+    <if_sid>92651</if_sid>
+    <field name="win.system.eventID">^4769$</field>
+    <description>Kerberos: ticket de servicio para $(win.eventdata.serviceName) entregado a $(win.eventdata.targetUserName) desde $(win.eventdata.ipAddress)</description>
+    <options>no_full_log</options>
+    <group>authentication_success,kerberos,</group>
+  </rule>
+
+  <rule id="100136" level="3">
+    <if_sid>92651</if_sid>
+    <field name="win.system.eventID">^4624$</field>
+    <description>Inicio de sesión remoto de $(win.eventdata.targetUserName) desde $(win.eventdata.ipAddress) (tipo $(win.eventdata.logonType))</description>
+    <options>no_full_log</options>
+    <group>authentication_success,</group>
+  </rule>
+
 </group>
 
 <!--
@@ -185,6 +370,23 @@
       <id>T1071.004</id>
     </mitre>
     <group>dns_tunnel,</group>
+  </rule>
+
+</group>
+
+<!--
+  Proxy de salida (srv-proxy, Squid)
+  Cada petición que pasa por el proxy y sale bien (códigos 2xx y 3xx) genera
+  una alerta de nivel 3: es el registro de navegación de la empresa. Los
+  errores (4xx y 5xx) ya los cubren las reglas de serie de Wazuh (35002-35009).
+-->
+<group name="proxy,squid,soc-lab,">
+
+  <rule id="100120" level="3">
+    <if_sid>35000</if_sid>
+    <id>^2|^3</id>
+    <description>Proxy: $(srcip) ha pedido $(url) ($(action)/$(id))</description>
+    <group>proxy_access,</group>
   </rule>
 
 </group>

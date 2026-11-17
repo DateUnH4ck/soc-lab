@@ -3,7 +3,7 @@
 ARG WAZUH_VERSION=4.14.9
 FROM wazuh/wazuh-agent:${WAZUH_VERSION}
 
-RUN yum install -y openssh-server rsyslog sudo shadow-utils iptables-nft && \
+RUN yum install -y openssh-server rsyslog sudo shadow-utils cronie iptables-nft && \
     yum clean all && rm -rf /var/cache/yum
 
 COPY ossec.conf /wazuh-config-mount/etc/ossec.conf
@@ -12,11 +12,13 @@ COPY rootfs/ /
 # Usuarios del laboratorio (empleados de la empresa ficticia Hackerlab Logística).
 # La contraseña de "soporte" es DÉBIL A PROPÓSITO: este contenedor solo es
 # accesible desde la red interna del laboratorio.
-# Además, pam_loginuid falla dentro de contenedores: lo hacemos opcional.
+# mgarcia es administradora (grupo wheel, puede usar sudo); soporte no.
+# Además, pam_loginuid falla dentro de contenedores: lo hacemos opcional (sshd y cron).
 RUN useradd -m -s /bin/bash soporte && echo 'soporte:sunshine' | chpasswd && \
     useradd -m -s /bin/bash mgarcia && echo 'mgarcia:Cambi4Esto!2026' | chpasswd && \
     usermod -aG wheel mgarcia && \
-    sed -i 's/^session\s\+required\s\+pam_loginuid.so/session optional pam_loginuid.so/' /etc/pam.d/sshd && \
+    echo '%wheel ALL=(ALL) ALL' > /etc/sudoers.d/10-wheel && chmod 440 /etc/sudoers.d/10-wheel && \
+    sed -i 's/^session\s\+required\s\+pam_loginuid.so/session optional pam_loginuid.so/' /etc/pam.d/sshd /etc/pam.d/crond && \
     chmod +x /etc/cont-init.d/01-lab-init /etc/services.d/*/run
 
 EXPOSE 22

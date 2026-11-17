@@ -11,7 +11,7 @@
 #    ./tests/scenarios.sh dcsync     # solo uno
 # =============================================================================
 set -uo pipefail
-cd "$(dirname "$0")/.."
+cd "$(dirname "$0")/.." || exit 1
 
 PASS=$(grep -E '^INDEXER_PASSWORD=' .env 2>/dev/null | cut -d= -f2- || true)
 PASS=${PASS:-SecretPassword}
@@ -26,12 +26,18 @@ declare -A EXPECT=(
   [run-key]=100102
   [pass-the-hash]=100103
   [scheduled-task]=100104
+  [kerberoast]=100106
+  [asrep-roast]=100107
+  [uac-bypass]=100130
+  [local-account]=100131
+  [bloodhound]=100133
+  [dcsync-rights]=100134
 )
 
 if [ $# -gt 0 ]; then
   SCENARIOS=("$@")
 else
-  mapfile -t SCENARIOS < <(sed -n 's/^  \([a-z0-9-]*\):$/\1/p' replayer/scenarios.yml)
+  mapfile -t SCENARIOS < <(awk '/^scenarios:/{f=1; next} f && /^  [a-z0-9-]+:$/{gsub(/^  |:$/, ""); print}' replayer/scenarios.yml)
 fi
 
 search() {  # $1 = desde (ISO 8601 UTC)
@@ -45,6 +51,17 @@ search() {  # $1 = desde (ISO 8601 UTC)
              "aggs": {"desc": {"terms": {"field": "rule.description", "size": 1}},
                       "nivel": {"max": {"field": "rule.level"}}}}}
   }'
+}
+
+debug_alerts() {  # para depurar una regla que no salta: campos de Windows de cada alerta
+  curl -sk -u "admin:${PASS}" "${IDX}/wazuh-alerts-*/_search" -H 'Content-Type: application/json' -d '{
+    "size": 10, "_source": ["rule.id", "data.win.system.eventID", "data.win.system.severityValue", "data.win.eventdata"],
+    "query": {"bool": {"filter": [
+      {"query_string": {"query": "rule.groups:windows"}},
+      {"range": {"timestamp": {"gte": "'"$1"'"}}}
+    ]}}
+  }' | python3 -c 'import sys,json
+for h in json.load(sys.stdin)["hits"]["hits"]: print("      ", json.dumps(h["_source"], ensure_ascii=False)[:600])' 2>/dev/null || true
 }
 
 total() { python3 -c 'import sys,json; print(json.load(sys.stdin)["hits"]["total"]["value"])' 2>/dev/null || echo 0; }
@@ -67,7 +84,7 @@ for sc in "${SCENARIOS[@]}"; do
   since=$(date -u +%Y-%m-%dT%H:%M:%S.000Z)
   ./lab.sh replay "$sc" >/dev/null 2>&1 || { printf "\033[1;31m  ✘ %-16s el replay ha fallado\033[0m\n" "$sc"; FAILED+=("$sc"); continue; }
   n=0
-  for i in $(seq 1 12); do
+  for _ in $(seq 1 12); do
     sleep 5
     n=$(search "$since" | total)
     [ "$n" -gt 0 ] && break
@@ -79,6 +96,7 @@ for sc in "${SCENARIOS[@]}"; do
   if [ -n "$want" ] && ! echo "$res" | grep -q "\"key\":\"$want\""; then
     printf "\033[1;31m  ✘ %-16s %3s alertas, pero no salta la regla %s\033[0m\n" "$sc" "$n" "$want"
     echo "$res" | summary
+    debug_alerts "$since"
     FAILED+=("$sc")
   elif [ "$n" -gt 0 ]; then
     printf "\033[1;32m  ✔ %-16s %3s alertas\033[0m\n" "$sc" "$n"

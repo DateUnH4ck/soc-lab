@@ -1,0 +1,6 @@
+#!/usr/bin/with-contenv bash
+# soc-lab: preparar srv-proxy antes de arrancar el agente
+mkdir -p /var/log/squid /var/spool/squid /run/squid
+touch /var/log/squid/access.log /var/log/squid/cache.log
+chown -R squid:squid /var/log/squid /var/spool/squid /run/squid
+rm -f /run/squid/squid.pid

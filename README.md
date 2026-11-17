@@ -29,24 +29,25 @@ como harías en un SOC de verdad.
    │            ▲                      ▲       │
    │            └──── kali (atacante) ─┘       │
    │                  172.30.10.66             │
-   │                       │ consultas DNS     │
-   │                       ▼                   │
-   │              srv-dns (dnsmasq) ── agente ─┼──► Wazuh
-   │              172.30.10.53                 │
+   │                  │ DNS          │ web     │
+   │                  ▼              ▼         │
+   │   srv-dns (dnsmasq)    srv-proxy (Squid)  │──► agentes ──► Wazuh
+   │   172.30.10.53         172.30.10.8        │
    └───────────────────────────────────────────┘
                   red dmz (172.30.10.0/24)
 ```
 
-## Qué incluye (versión 1.1)
+## Qué incluye (versión 1.2)
 
 | Pieza | Qué es | Para qué la usamos |
 |---|---|---|
 | **Wazuh 4.14** | SIEM + XDR open source (indexer, manager y dashboard) | Ver alertas, buscar en logs, investigar |
-| **srv-web** | Servidor nginx con agente Wazuh | Escaneos web, fuerza bruta, defacement (FIM) |
-| **srv-ssh** | Servidor Linux con OpenSSH y agente Wazuh | Fuerza bruta SSH, accesos, persistencia |
+| **srv-web** | Servidor nginx (HTTP y HTTPS) con agente Wazuh | Escaneos web, TLS y SNI en el log, defacement (FIM) |
+| **srv-ssh** | Servidor Linux con OpenSSH, sudo y cron, con agente Wazuh | Fuerza bruta SSH, accesos, sudo, persistencia (cron, claves SSH) |
 | **srv-dns** | DNS de la empresa (dnsmasq, zona `hackerlab.local`) con agente Wazuh | Ver cada consulta DNS en el SIEM, túneles DNS |
+| **srv-proxy** | Proxy de salida de la empresa (Squid) con agente Wazuh | Registro de navegación, X-Forwarded-For |
 | **kali** | Kali Linux con nmap, hydra, nikto... | Atacar a las víctimas (solo dentro del lab) |
-| **replayer** | Inyecta en Wazuh eventos reales de ataques a Windows | Practicar Active Directory y Sysmon **sin una VM Windows** |
+| **replayer** | Inyecta en Wazuh eventos reales de ataques a Windows (25 escenarios) | Practicar Active Directory y Sysmon **sin una VM Windows** |
 | **Reglas propias** | Detecciones que Wazuh no trae de serie (p. ej. DCSync) | Que todos los ataques del curso generen alerta desde el primer día |
 
 ## Requisitos
@@ -98,6 +99,7 @@ El navegador avisará de que el certificado es autofirmado: es normal, acéptalo
 | `./lab.sh replay --list` | `.\lab.ps1 replay --list` | Lista los ataques de Windows disponibles |
 | `./lab.sh replay dcsync` | `.\lab.ps1 replay dcsync` | Reproduce un ataque en Wazuh |
 | `./lab.sh capture srv-ssh 30` | `.\lab.ps1 capture srv-ssh 30` | Captura 30 s de tráfico en `captures/` (para Wireshark) |
+| `./lab.sh turno` | `.\lab.ps1 turno` | Simula un turno de N1: unos minutos de actividad para triar en Wazuh |
 | `./lab.sh logs srv-web` | `.\lab.ps1 logs srv-web` | Logs de un servicio |
 | `./lab.sh update` | `.\lab.ps1 update` | Actualiza el laboratorio a la última versión |
 | `./lab.sh version` | `.\lab.ps1 version` | Versión que tienes instalada |
@@ -144,8 +146,9 @@ que lo consiguió. Eso es lo que tendrías que escalar en un SOC.
 ## Ataques de Windows sin Windows
 
 El replayer reproduce en Wazuh eventos **reales** grabados durante ataques
-(DCSync, Pass-the-Hash, PsExec, volcado de LSASS...) del proyecto
-[EVTX-ATTACK-SAMPLES](https://github.com/sbousseaden/EVTX-ATTACK-SAMPLES).
+(DCSync, Kerberoasting, Pass-the-Hash, PsExec, volcado de LSASS...) de los proyectos
+[EVTX-ATTACK-SAMPLES](https://github.com/sbousseaden/EVTX-ATTACK-SAMPLES) y
+[EVTX-to-MITRE-Attack](https://github.com/mdecrevoisier/EVTX-to-MITRE-Attack).
 Llegan a Wazuh exactamente igual que si los enviara un agente de Windows, así
 que saltan las mismas reglas. Todos los alumnos ven los mismos eventos.
 
@@ -179,9 +182,35 @@ muy largo (`100113`) y ráfaga de consultas desde un mismo equipo (`100114`), la
 huellas típicas de un túnel DNS. El dominio `malo.test` hace de dominio del
 atacante: cualquier subdominio suyo resuelve a la Kali.
 
+## El proxy de la empresa
+
+srv-proxy es el proxy de salida (Squid, puerto 3128). Lo que se navega a través
+de él queda en su log y llega a Wazuh (`agent.name: srv-proxy`, `rule.id: 100120`).
+
+```bash
+./lab.sh attacker
+curl -x http://srv-proxy.hackerlab.local:3128 http://srv-web.hackerlab.local/
+curl -sk https://srv-web.hackerlab.local/          # HTTPS directo
+```
+
+Fíjate en el log de srv-web: cuando la petición llega por el proxy, la IP que
+aparece es la del proxy, y la del equipo real va en `xff=` (X-Forwarded-For).
+En HTTPS, el log añade la versión de TLS (`tls=`) y el nombre pedido (`sni=`).
+
+## Un turno de N1
+
+```bash
+./lab.sh turno        # Windows: .\lab.ps1 turno
+```
+
+Durante unos minutos pasan cosas en la empresa: ataques, cambios legítimos de los
+administradores y ruido. Tú trabajas la cola en Wazuh: separas lo real de lo
+benigno, escalas lo que toca y escribes la nota de relevo. No mires
+`tools/turno/pasos.txt` antes de hacerlo: es la solución.
+
 ## Cosas que conviene saber
 
-- **Dos IPs por servidor.** srv-web, srv-ssh y srv-dns tienen dos tarjetas de red: una en la
+- **Dos IPs por servidor.** srv-web, srv-ssh, srv-dns y srv-proxy tienen dos tarjetas de red: una en la
   DMZ (172.30.10.x), por donde las ataca la Kali, y otra en la red `soc`
   (172.30.20.x), por donde hablan con Wazuh. Por eso en el dashboard verás
   srv-ssh como 172.30.20.x aunque lo ataques en 172.30.10.11.
@@ -206,6 +235,7 @@ atacante: cualquier subdominio suyo resuelve a la Kali.
 
 - [x] **Fase 1** · Wazuh + víctimas Linux + Kali + replayer de Windows (temporadas 1-2)
 - [x] **1.1** · DNS de la empresa (srv-dns), capturas de tráfico y `update`
+- [x] **1.2** · HTTPS, proxy (srv-proxy), 25 escenarios de Windows/AD, cron y `turno` (temporada 1 completa)
 - [ ] **Fase 2** · Phishing y CTI: Mailpit, MISP, TheHive + Cortex, CyberChef
 - [ ] **Fase 3** · Red, endpoint e IR: Suricata, Zeek, Velociraptor, Elastic, VM Windows opcional
 - [ ] **Fase 4** · Detección y automatización: Sigma, Atomic Red Team, Shuffle SOAR
@@ -220,7 +250,8 @@ y la salida de `./lab.sh status`.
 
 - Configuración de Wazuh basada en [wazuh/wazuh-docker](https://github.com/wazuh/wazuh-docker) (GPLv2).
 - Muestras de ataques: [EVTX-ATTACK-SAMPLES](https://github.com/sbousseaden/EVTX-ATTACK-SAMPLES)
-  de Samir Bousseaden (GPLv3); se descargan bajo demanda, no se incluyen en este repo.
+  de Samir Bousseaden (GPLv3) y [EVTX-to-MITRE-Attack](https://github.com/mdecrevoisier/EVTX-to-MITRE-Attack)
+  de Michel de Crevoisier (CC0); se descargan bajo demanda, no se incluyen en este repo.
 - El resto del código: licencia MIT. Detalles en [NOTICE](NOTICE).
 
 Hecho por **Jonathas Carneiro** · [YouTube](https://www.youtube.com/@DateUnH4ck) · [GitHub](https://github.com/dat3unh4ck)

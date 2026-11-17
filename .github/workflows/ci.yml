@@ -40,7 +40,7 @@ jobs:
         if: failure()
         run: |
           docker compose ps -a
-          for s in wazuh.indexer wazuh.manager wazuh.dashboard srv-web srv-ssh srv-dns attacker; do
+          for s in wazuh.indexer wazuh.manager wazuh.dashboard srv-web srv-ssh srv-dns srv-proxy attacker; do
             echo "::group::$s"; docker compose logs --tail 150 "$s" || true; echo "::endgroup::"
           done
 

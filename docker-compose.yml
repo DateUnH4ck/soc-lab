@@ -7,7 +7,7 @@
 #
 #  Redes:
 #    soc  (172.30.20.0/24) -> SIEM (Wazuh) y agentes
-#    dmz  (172.30.10.0/24) -> víctimas, DNS y atacante. El atacante NO ve el SIEM.
+#    dmz  (172.30.10.0/24) -> víctimas, DNS, proxy y atacante. El atacante NO ve el SIEM.
 #
 #  Los servicios de Wazuh se basan en wazuh/wazuh-docker (GPLv2), single-node.
 # =============================================================================
@@ -170,6 +170,29 @@ services:
   #  DNS interno de la empresa (dnsmasq) con agente Wazuh
   #  Zona hackerlab.local; cada consulta llega a Wazuh (reglas 100110-100114).
   # ---------------------------------------------------------------------------
+  # ---------------------------------------------------------------------------
+  #  Proxy de salida de la empresa (Squid) con agente Wazuh
+  #  Uso: curl -x http://srv-proxy.hackerlab.local:3128 <url>  (regla 100120)
+  # ---------------------------------------------------------------------------
+  srv-proxy:
+    <<: *restart
+    build:
+      context: ./victims/proxy
+      args:
+        WAZUH_VERSION: ${WAZUH_VERSION:-4.14.9}
+    image: dateunh4ck/soc-lab-srv-proxy:local
+    hostname: srv-proxy
+    environment:
+      - WAZUH_MANAGER_SERVER=wazuh.manager
+      - WAZUH_AGENT_NAME=srv-proxy
+      - WAZUH_AGENT_GROUP=default
+    depends_on: [wazuh.manager, srv-dns]
+    dns: [172.30.10.53]
+    networks:
+      soc: {}
+      dmz:
+        ipv4_address: 172.30.10.8
+
   srv-dns:
     <<: *restart
     build:

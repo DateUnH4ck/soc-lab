@@ -43,6 +43,8 @@ usage() {
     capture <servicio> [segundos]
                       Captura el tráfico de un contenedor (60 s por defecto)
                       en captures/*.pcap, para abrirlo con Wireshark
+    turno             Simula un turno de N1: durante unos minutos pasa de
+                      todo en la empresa y tú trabajas la cola en Wazuh
     logs [servicio]   Muestra los logs (Ctrl+C para salir)
     reset             Borra TODOS los datos (alertas, agentes) y empieza de cero
     help              Esta ayuda
@@ -268,6 +270,27 @@ cmd_capture() {
   c_ok "Captura guardada en captures/${file} (ábrela con Wireshark)"
 }
 
+cmd_turno() {
+  local file="tools/turno/pasos.txt" n=0 total wait svc cmd
+  total=$(grep -cvE '^[[:space:]]*(#|$)' "$file")
+  c_info "Empieza tu turno. Durante unos minutos van a pasar cosas en Hackerlab Logística."
+  c_info "No mires esta ventana: abre Wazuh (Threat Hunting) y trabaja la cola de alertas."
+  while IFS='|' read -r wait svc cmd; do
+    case "$wait" in ''|'#'*) continue ;; esac
+    n=$((n + 1))
+    [ "${SOC_LAB_TURNO_RAPIDO:-0}" = "1" ] && wait=2   # solo para la CI
+    sleep "$wait"
+    printf "\r  ⏱  actividad %d de %d en marcha... " "$n" "$total"
+    if [ "$svc" = "replay" ]; then
+      $COMPOSE --profile tools run --rm replayer "$cmd" >/dev/null 2>&1 </dev/null || true
+    else
+      $COMPOSE exec -T "$svc" sh -c "$cmd" >/dev/null 2>&1 </dev/null || true
+    fi
+  done < "$file"
+  echo
+  c_ok "Se acabó la actividad. Tu turno sigue: termina la cola, abre los tickets y escribe la nota de relevo."
+}
+
 cmd_reset() {
   c_warn "Esto borra TODAS las alertas, agentes y datos del laboratorio."
   read -r -p "¿Seguro? Escribe 'si' para continuar: " answer
@@ -287,6 +310,7 @@ main() {
     update)   cmd_update ;;
     version|--version) cmd_version ;;
     capture)  cmd_capture "$@" ;;
+    turno)    cmd_turno ;;
     attacker|kali) $COMPOSE exec attacker bash ;;
     shell)    $COMPOSE exec "${1:?Indica el servicio, p. ej. srv-ssh}" bash ;;
     replay)   $COMPOSE --profile tools run --rm replayer "$@" ;;

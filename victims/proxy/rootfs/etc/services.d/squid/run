@@ -1,0 +1,2 @@
+#!/usr/bin/with-contenv bash
+exec /usr/sbin/squid -N -f /etc/squid/squid.conf

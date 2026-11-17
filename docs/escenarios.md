@@ -1,6 +1,6 @@
 # Escenarios del replayer
 
-Ataques reales de Windows/Active Directory que puedes reproducir en Wazuh con:
+Ataques reales de Windows/Active Directory que puedes reproducir en Wazuh (25 escenarios) con:
 
 ```bash
 ./lab.sh replay <escenario>        # Windows: .\lab.ps1 replay <escenario>
@@ -21,6 +21,20 @@ Ataques reales de Windows/Active Directory que puedes reproducir en Wazuh con:
 | `scheduled-task` | Persistencia con tarea programada | T1053.005 | M10 · Endpoint | **100104** y **100105** (nivel 8 y 10) · reglas del lab |
 | `run-key` | Persistencia en clave Run oculta (Sysmon 13) | T1547.001 | M10 · Endpoint | **100102** (nivel 10) · regla del lab |
 | `admin-group` | Cuenta añadida a Administradores (4732) | T1098 | M3 · Active Directory | 60154 (nivel 12) |
+| `process-4688` | Proceso creado con PowerShell codificado (4688) | T1059.001 | M2 · Windows y Linux | 67027 (nivel 3) |
+| `unquoted-service` | Servicio con ruta sin comillas (Sysmon 1 y 11) | T1574.009 | M2 · Windows y Linux | 61618 (nivel 12) y 92052 |
+| `task-4698` | Tarea programada creada y borrada (4698 y 4699) | T1053.005 | M2 · Windows y Linux | 60228 (nivel 4) |
+| `wmi-persistence` | Suscripción WMI con CommandLineEventConsumer (Sysmon 19-21) | T1546.003 | M2 · Windows y Linux | 89502 (nivel 14) |
+| `powershell-4104` | Descarga con PowerShell (4103 y 4104) | T1059.001 | M2 · Windows y Linux | 91837 (nivel 4) |
+| `uac-bypass` | Bypass de UAC con eventvwr.exe (Sysmon 13 y 1) | T1548.002 | M2 · Windows y Linux | **100130** (nivel 12) · regla del lab |
+| `local-account` | Cuenta local creada y añadida a Administradores (Sysmon 12 y 13) | T1136.001 | M2 · Windows y Linux | **100131** y **100132** (nivel 10) · reglas del lab |
+| `kerbrute` | Enumeración de usuarios por Kerberos (4768 y 4771) | T1087.002 | M3 · Active Directory | 60104 / 60205 y **100108** (TGT, nivel 3) |
+| `ntlm-bruteforce` | Fuerza bruta por NTLM contra cuentas locales (4776 y 4625) | T1110.001 | M3 · Active Directory | 60122 (nivel 5) |
+| `kerberoast` | Kerberoasting: ticket de servicio con RC4 (4769) | T1558.003 | M3 · Active Directory | **100106** (nivel 12) · regla del lab |
+| `asrep-roast` | AS-REP roasting: TGT sin preautenticación (4768) | T1558.004 | M3 · Active Directory | **100107** (nivel 12) · regla del lab |
+| `bloodhound` | Recolección de BloodHound (SAMR por IPC$, 5145) | T1087.002 | M3 · Active Directory | **100133** (nivel 8) · regla del lab |
+| `dcsync-rights` | Permisos de DCSync concedidos con PowerView (5136 y 4662) | T1098 | M3 · Active Directory | **100134** (nivel 12) · regla del lab, y 60229 |
+| `log-cleared` | Log de seguridad borrado (1102) | T1070.001 | M6 · Logs y telemetría | 63103 (nivel 5) |
 
 Todos los escenarios generan alertas: la CI los reproduce uno a uno en x86 y ARM
 en cada cambio (`tests/scenarios.sh`). Las reglas marcadas como *del lab* están en
@@ -45,7 +59,14 @@ en alerta).
 `replayer/replay.py` lee los ficheros `.evtx`, convierte cada evento al mismo
 XML que envía el agente de Windows y lo entrega en la cola interna del manager
 (`queue/sockets/queue`) por el canal `EventChannel`. Las muestras se descargan de
-[EVTX-ATTACK-SAMPLES](https://github.com/sbousseaden/EVTX-ATTACK-SAMPLES)
-(commit fijado en `replayer/scenarios.yml`) y se guardan en caché.
+[EVTX-ATTACK-SAMPLES](https://github.com/sbousseaden/EVTX-ATTACK-SAMPLES) (GPLv3) y de
+[EVTX-to-MITRE-Attack](https://github.com/mdecrevoisier/EVTX-to-MITRE-Attack) (CC0),
+con un commit fijado de cada una en `replayer/scenarios.yml`, y se guardan en caché.
 
-Para añadir un escenario, añade una entrada en `replayer/scenarios.yml`.
+Para añadir un escenario, añade una entrada en `replayer/scenarios.yml` (con
+`source:` si la muestra viene de otra fuente).
+
+Las reglas del lab **100108** (TGT 4768), **100109** (validación NTLM 4776),
+**100135** (ticket de servicio 4769 con IP) y **100136** (inicio de sesión remoto
+4624 con IP) son telemetría de nivel 3: de serie Wazuh no guarda esos eventos y,
+sin ellos, no se puede investigar un ataque a Active Directory.

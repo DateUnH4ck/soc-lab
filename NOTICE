@@ -15,4 +15,6 @@ Componentes de terceros descargados en tiempo de ejecución (no incluidos):
 
 - EVTX-ATTACK-SAMPLES — Samir Bousseaden — GPLv3
   https://github.com/sbousseaden/EVTX-ATTACK-SAMPLES
+- EVTX-to-MITRE-Attack — Michel de Crevoisier — CC0 1.0
+  https://github.com/mdecrevoisier/EVTX-to-MITRE-Attack
 - Imágenes Docker de Wazuh, Kali Linux, Python y Amazon Linux, cada una con su licencia.
