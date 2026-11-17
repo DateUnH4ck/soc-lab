@@ -131,11 +131,13 @@
     4769 = el controlador de dominio entrega un ticket de servicio (TGS). Si se
     pide con cifrado RC4 (0x17) para una cuenta de servicio de usuario, el
     atacante puede crackear el ticket sin conexión y sacar su contraseña.
-    Wazuh solo lo ve como un "inicio de sesión correcto" (60106, nivel 3).
+    Wazuh solo lo ve como un "inicio de sesión correcto" (60106, nivel 3) o,
+    si trae IP de origen, como "inicio de sesión remoto" (92651, nivel 0: ni se
+    guarda). Por eso la regla cuelga de las dos.
     Excluimos krbtgt y las cuentas de máquina (terminadas en $).
   -->
   <rule id="100106" level="12">
-    <if_sid>60106</if_sid>
+    <if_sid>60106, 92651</if_sid>
     <field name="win.system.eventID">^4769$</field>
     <field name="win.eventdata.ticketEncryptionType" type="pcre2">(?i)^0x0*17$</field>
     <field name="win.eventdata.serviceName" type="pcre2" negate="yes">(?i)\$$|^krbtgt$</field>
